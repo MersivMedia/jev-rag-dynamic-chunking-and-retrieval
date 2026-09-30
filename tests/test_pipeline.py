@@ -161,6 +161,14 @@ def test_dry_run_makes_no_calls(fake_jev):
     assert not rag.store.collection_exists("kb")
 
 
+def test_dry_run_estimate_is_zero_when_no_stage_uses_jev(fake_jev):
+    rag = make(fake_jev)
+    rag.chunking = ChunkConfig(method="structural")
+    rag.enrich_cfg = EnrichConfig(mode="off")
+    rep = rag.ingest(DOCS, collection="kb", dry_run=True)
+    assert rep.estimate["jev_requests"] == 0 and rep.estimate["jev_cost_usd"] == 0
+
+
 def test_taxonomy_requires_other():
     with pytest.raises(ValueError, match="other"):
         Taxonomy.from_dict({"fields": {"x": {"options": {"a": 1, "b": 2}}}})

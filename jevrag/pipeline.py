@@ -213,11 +213,17 @@ class Pipeline:
         report = IngestReport(collection=collection, dry_run=dry_run)
         if dry_run:
             reqs = toks = 0
+            uses_jev_chunking = self.chunking.method == "jev" and self.chunking.mode != "off"
+            uses_enrich = self.enrich_cfg.mode != "off"
             for d in docs:
-                r, t = estimate_jev_requests(d, self.chunking, self.count)
                 n_chunks = max(1, len(d.text) // max(1, self.chunking.target_tokens * 4))
-                reqs += r + n_chunks
-                toks += t + n_chunks * (self.chunking.target_tokens + 400)
+                if uses_jev_chunking:
+                    r, t = estimate_jev_requests(d, self.chunking, self.count)
+                    reqs += r
+                    toks += t
+                if uses_enrich:
+                    reqs += n_chunks
+                    toks += n_chunks * (self.chunking.target_tokens + 400)
                 report.docs.append(DocReport(d.resolved_id(), "dry_run"))
             report.estimate = {"jev_requests": reqs, "jev_tokens": toks,
                                "jev_cost_usd": round(toks * self.jev_config.price_per_million / 1e6, 6)}

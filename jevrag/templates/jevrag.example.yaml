@@ -49,7 +49,7 @@ store:
 #   schema: public
 #   table_prefix: jevrag_      # one table per collection: jevrag_<collection>
 
-# store:                       # Pinecone  (pip install "...[pinecone]")
+# store:                       # Pinecone, EXPERIMENTAL: not yet tested live  (pip install "...[pinecone]")
 #   kind: pinecone
 #   index: jevrag              # a jevrag collection is a namespace in this index; created if missing
 #   api_key_env: PINECONE_API_KEY

@@ -1,4 +1,6 @@
-"""Pinecone adapter (``pip install ...[pinecone]``, the ``pinecone`` package; ``pinecone-client`` is deprecated).
+"""EXPERIMENTAL: not yet run against a live Pinecone index.
+
+Pinecone adapter (``pip install ...[pinecone]``, the ``pinecone`` package; ``pinecone-client`` is deprecated).
 
 A jevrag collection is a **namespace** in one serverless index. The index is
 created if missing (``PINECONE_CLOUD`` / ``PINECONE_REGION``, default aws /

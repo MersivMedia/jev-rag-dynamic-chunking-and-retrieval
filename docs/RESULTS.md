@@ -76,4 +76,5 @@ Per-request Jev latency in these runs: p50 230 to 380 ms, p90 240 to 470 ms.
 | Store conformance against Postgres 17.11 + pgvector 0.8.6 (Docker) | 27 passed |
 | Offline tests on Python 3.10 with no extras installed (store tests skip) | passed |
 | Live end-to-end (`tests/test_live.py`) against Jev and OpenAI embeddings via Vercel AI Gateway | passed |
-| Pinecone | **not run**: no Pinecone account was available |
+| Live `.env` loading: `jevrag init`, key written only to `.env` (mode 600), then `check`, `ingest`, `query` with no Jev or embedding key in the process environment | passed; `--no-env-file` control run correctly found no key; key absent from all output |
+| Pinecone (experimental) | **not run**: deferred until a Pinecone account is available |

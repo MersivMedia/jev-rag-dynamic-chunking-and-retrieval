@@ -31,6 +31,9 @@ def make_store(spec: Mapping[str, Any]) -> VectorStore:
         dsn = spec.get("dsn") or os.environ.get(spec.get("dsn_env", "DATABASE_URL"), "")
         return PgVectorStore(dsn, schema=spec.get("schema", "public"), table_prefix=spec.get("table_prefix", "jevrag_"))
     if kind == "pinecone":
+        import warnings
+        warnings.warn("the Pinecone adapter is experimental: it has not been tested against a live index",
+                      UserWarning, stacklevel=2)
         from .pinecone import PineconeStore
         if not spec.get("index"):
             raise ValueError("pinecone store needs 'index' (the index name)")

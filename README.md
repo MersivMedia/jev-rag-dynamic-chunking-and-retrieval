@@ -7,7 +7,7 @@ Jev-steered chunking, ingestion and retrieval for any vector database.
 - **Chunks that follow the text, not a character count.** Jev judges whether each sentence continues the point of the one before it; code places the cuts inside hard token limits. Headings, tables and code blocks are handled in code.
 - **A cleaner index.** Filler and boilerplate are dropped, and text that tries to instruct an AI is quarantined, before anything is embedded. Every chunk can be tagged against your own taxonomy, with probabilities.
 - **Less context, fewer wrong answers.** Each retrieved passage is classified as evidence, a conflict with the question, or noise. A final check abstains when the passages can't answer, before any LLM call.
-- **Your database.** Adapters for Postgres + pgvector, Qdrant, Chroma and Pinecone, plus a bridge to any LangChain vector store, all held to one conformance suite.
+- **Your database.** Adapters for Postgres + pgvector, Qdrant and Chroma, plus a bridge to any LangChain vector store, all held to one conformance suite. A Pinecone adapter is included as experimental.
 - **Cheap.** A small end-to-end run cost $0.00024 of Jev to ingest four documents and under $0.0001 per query ([measured](docs/RESULTS.md)). Jev charges $0.042 per million input tokens and nothing for output.
 
 > **Status: v1.0 in development.** The pipeline below is built and tested: 159 offline tests, the store conformance suite against real Postgres + pgvector, and a live end-to-end test against Jev. Retrieval-quality benchmarks against baseline chunkers and re-rankers are not done yet: see [Results](docs/RESULTS.md) for what has and hasn't been measured, and [Known issues](docs/KNOWN_ISSUES.md).
@@ -51,7 +51,8 @@ pip install "jev-rag-dynamic-chunking-and-retrieval[qdrant] @ git+https://github
 
 | Extra | Installs |
 |---|---|
-| `qdrant`, `chroma`, `pgvector`, `pinecone` | That database's official client |
+| `qdrant`, `chroma`, `pgvector` | That database's official client |
+| `pinecone` | The Pinecone client, for the experimental adapter |
 | `langchain` | `langchain-core`, for the bridge to any LangChain vector store |
 | `local` | sentence-transformers, for local embeddings |
 | `pdf`, `docx` | PyMuPDF and python-docx loaders |
@@ -454,11 +455,11 @@ jevrag query "..." --collection docs --retrieve-only
 | Postgres + pgvector | `pgvector` | Conformance suite against Postgres 17 + pgvector | One table per collection; HNSW index with the metric's operator class; expression indexes on filter fields; filters compile to parameterised SQL. `dsn` or `dsn_env` (default `DATABASE_URL`) |
 | Qdrant | `qdrant` | Conformance suite in embedded mode | Uses `query_points`; creates payload indexes for filter fields. `url`, or `path` for embedded local mode |
 | Chroma | `chroma` | Conformance suite, persistent client | Sets the distance metric explicitly and converts distances to similarity. Existence tests and `ne`/`nin` run in Python after a superset query. `path`, or `host` + `port` |
-| Pinecone | `pinecone` | **Not yet run against Pinecone** | Collection = namespace in one serverless index (created if missing). Text trimmed to fit the 40 KB metadata limit. Filtered deletes list ids first. `index`, `cloud`, `region` |
+| Pinecone (experimental) | `pinecone` | **Not yet run against Pinecone; not part of v1.0's tested set** | Collection = namespace in one serverless index (created if missing). Text trimmed to fit the 40 KB metadata limit. Filtered deletes list ids first. `index`, `cloud`, `region` |
 | Anything in LangChain | Python only | Conformance suite with `InMemoryVectorStore` | `LangChainStore(your_store)`; filters run in Python over an over-fetched result |
 | In-memory | `memory` | Conformance suite | Reference semantics; optional JSON file with `path`. For tests and small demos |
 
-All native adapters pass the same conformance suite: round trip, idempotent upsert, replace, delete by id and by filter, the stale-delete pattern, every filter operator (18 cases), score normalisation, empty batches and manifests.
+Every adapter except the experimental Pinecone one passes the same conformance suite: round trip, idempotent upsert, replace, delete by id and by filter, the stale-delete pattern, every filter operator (18 cases), score normalisation, empty batches and manifests.
 
 LangChain bridge:
 
@@ -541,7 +542,7 @@ CI runs the offline suite on Python 3.10, 3.12 and 3.13, and the pgvector confor
 Planned, not in this release. Tracked in the [PRD](docs/PRD.md) milestones:
 
 - **Measured defaults:** `jevrag eval` against baseline chunkers and re-rankers on public datasets, threshold calibration, and published results.
-- **More databases:** Weaviate, Milvus, MongoDB Atlas, Elasticsearch, OpenSearch, Redis, LanceDB, Azure AI Search, turbopuffer, and a LlamaIndex bridge.
+- **More databases:** Pinecone verified against a live index, then Weaviate, Milvus, MongoDB Atlas, Elasticsearch, OpenSearch, Redis, LanceDB, Azure AI Search, turbopuffer, and a LlamaIndex bridge.
 - **More embedders:** native Cohere, Voyage, Gemini and Mistral clients with document/query input types.
 - **Hybrid search**, near-duplicate removal across documents, packed multi-passage classification.
 - **Maintenance commands:** `reenrich` (new taxonomy without re-embedding), `reembed` (new embedder into a new collection).

@@ -72,7 +72,8 @@ STORE_TEMPLATES = {
     "qdrant": "  kind: qdrant\n  url: http://localhost:6333\n  # api_key_env: QDRANT_API_KEY",
     "chroma": "  kind: chroma\n  path: .jevrag/chroma        # or host: localhost + port: 8000",
     "pgvector": "  kind: pgvector\n  dsn_env: DATABASE_URL        # postgresql://user:pass@host:5432/db",
-    "pinecone": "  kind: pinecone\n  index: jevrag                # collection = namespace in this index\n"
+    "pinecone": "  kind: pinecone               # EXPERIMENTAL: not yet tested against a live index\n"
+                "  index: jevrag                # collection = namespace in this index\n"
                 "  # api_key_env: PINECONE_API_KEY",
 }
 

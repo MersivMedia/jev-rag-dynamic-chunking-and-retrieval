@@ -19,7 +19,7 @@ Current limits of the v1.0 development build. Each has a workaround or a milesto
 
 ## Stores
 
-- **Pinecone is untested against a live index.** The adapter follows the `pinecone` 10.x SDK signatures and has not been run through the conformance suite. Filtered listing and deletes use a filtered query and are capped at 10,000 ids per call.
+- **Pinecone is experimental and untested against a live index** (deferred to M4). The adapter follows the `pinecone` 10.x SDK signatures and has not been run through the conformance suite. Filtered listing and deletes use a filtered query and are capped at 10,000 ids per call.
 - **Chroma** can't express existence tests natively, and its `$ne` / `$nin` also match records without the field. jevrag queries a superset and filters in Python, over-fetching for queries. Very selective negative filters can return fewer than `top_k`.
 - **LangChain bridge** filters in Python after over-fetching (`overfetch`, default 4 times `top_k`), and relies on the wrapped store honouring caller-supplied ids for replace and stale-delete. Use `JevragEmbeddings` so stored vectors come from jevrag's `embed_text`.
 - **Qdrant embedded mode** ignores payload indexes (a Qdrant limitation); use a Qdrant server for large collections.

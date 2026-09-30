@@ -68,10 +68,12 @@ def cmd_check(args: argparse.Namespace) -> int:
         nonlocal ok
         from .jev import JevClient, JevError, Noul
         c = JevClient(cfg.jev)
+        header = False
         try:
             r = c.resolved
             print(f"jev       backend={r['backend']} model={r['model']} key={r['api_key_env']}"
                   f"{'' if r['api_key'] else ' (NOT SET)'}")
+            header = True
             async with c:
                 resp = await c.ask("Refresh tokens expire after 14 days.",
                                    {"t": Noul("Does this text state a time limit?")})
@@ -79,7 +81,7 @@ def cmd_check(args: argparse.Namespace) -> int:
                   f"{' (cached)' if resp.cached else ''}")
         except JevError as exc:
             ok = False
-            print(f"          FAILED: {exc}")
+            print(f"{'' if header else 'jev':<10}FAILED: {exc}")
         try:
             v = await rag.embedder.embed_query("hello")
             print(f"embedder  {rag.embedder.spec}: ok, dimension {len(v)}")

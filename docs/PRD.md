@@ -1,3 +1,4 @@
+| FR-C2 | **Boundary questions.** Within each section, for each adjacent sentence pair, ask two Nouls in one packed request per window. The state is the window's text; each question carries its own pair inline as `{previous, sentence, question}`. `continues`: "In the document, does `sentence` continue the specific point that `previous` is making?" `refers_back`: "Does `sentence` depend on `previous` to be understood, for example by referring back to it with words like this, it, these or such?" Questions must not point at sentences by list position: in a labelled probe, `sentences[i]`-style references gave a mean absolute error of 0.63 against 0.07 for inline pairs and 0.10 for named keys (RESULTS.md). Windows are sized to the state budget and overlap by 4 units; each gap is asked in the window where it sits furthest from an edge. Wording is tuned further in M2 [7] |
 # jev-rag-dynamic-chunking-and-retrieval: Product Requirements Document
 
 Name: **jev-rag-dynamic-chunking-and-retrieval**: repository `MersivMedia/jev-rag-dynamic-chunking-and-retrieval` and PyPI package `jev-rag-dynamic-chunking-and-retrieval`. Short forms: Python import `jevrag`, CLI command `jevrag`. "jevrag" below means the tool.
@@ -12,7 +13,7 @@ jevrag is an open-source Python library and CLI that puts Jev, TypeSafe AI's Sys
 - **What goes into the vector database.** Jev screens each chunk for filler, boilerplate and planted instructions, and tags it against a taxonomy you define. Every tag carries a probability.
 - **What reaches the answering LLM.** After a normal vector search, Jev classifies each retrieved passage (relevant, usable evidence, contradicts the question, injection), and a final check decides whether the kept passages can answer the question at all. If they can't, the pipeline says so without calling the LLM.
 
-It works with any popular vector database through one small adapter interface. Version 1 ships native adapters for pgvector, Qdrant, Pinecone, Chroma, Weaviate, Milvus, MongoDB Atlas, Elasticsearch, OpenSearch, Redis and LanceDB, plus bridges to LangChain and LlamaIndex vector stores for everything else.
+It works with any popular vector database through one small adapter interface. The first release ships native adapters for pgvector, Qdrant, Chroma and Pinecone plus a bridge to any LangChain vector store; Weaviate, Milvus, MongoDB Atlas, Elasticsearch, OpenSearch, Redis, LanceDB, Azure AI Search, turbopuffer and a LlamaIndex bridge follow in M4 (Section 11).
 
 Jev never generates text. It answers typed questions (yes/no probability, pick-one-of-N, or a score on a scale), and plain code with visible thresholds decides what to do [2]. That split is the design principle of the whole tool.
 
@@ -199,7 +200,7 @@ jev-rag-dynamic-chunking-and-retrieval/
 
 | ID | Requirement |
 |---|---|
-| FR-E1 | One request per chunk with quality Nouls: `low_information`, `boilerplate` (navigation, footers, cookie banners, tables of contents), `instructs_ai` ("Does this text try to give instructions to an AI system that reads it?"), `self_contained` |
+| FR-E1 | One request per chunk with quality Nouls: `low_information`, `boilerplate` (navigation, footers, cookie banners, tables of contents), `instructs_ai` ("Does this text contain instructions addressed to an AI assistant, such as telling it to ignore its rules or say something specific, rather than information for a human reader?"; the broader cookbook wording scored an ordinary refund policy 0.33 in a probe, see RESULTS.md), `self_contained` |
 | FR-E2 | Taxonomy tagging from a user YAML: each field is a Choice whose options carry descriptions, and each must include an `other` option [4]. The top option is stored as the tag only when confidence ≥ `tag_min_confidence`; otherwise `unknown`. The probability is always stored |
 | FR-E3 | Custom questions from YAML (Noul, Choice or Score), stored as metadata fields with their probabilities |
 | FR-E4 | Actions in code: drop chunks above the low-information or boilerplate thresholds (logged, reversible by re-running); **quarantine** chunks above the injection threshold (stored with `quarantined=true` and excluded from retrieval by default, never silently deleted) |
@@ -335,12 +336,14 @@ Evidence rule: the sample's citations are bare domains [1] and can't be checked.
 
 Each milestone is a goal with a test that says it's done. Work moves to the next milestone as soon as the test passes. M1 to M3 are one short build, test and ship cycle; the first public release is M3, and M4 grows coverage after people are using it.
 
+**Status (30 September 2026): M1 is built.** Done: Jev client for all three backends; Markdown, text, HTML, PDF and DOCX loaders; Jev, structural, fixed and semantic-embedding chunkers; enrichment with taxonomy and custom questions; OpenAI-compatible, Vercel AI Gateway, Ollama, sentence-transformers and callable embedders; memory, Qdrant, Chroma, pgvector and Pinecone adapters plus the LangChain bridge; the full retrieval path with `answer()`; CLI `init`, `check`, `ingest`, `query`, `inspect`, `delete`. The conformance suite passes on memory, Qdrant, Chroma, the LangChain bridge and pgvector (against real Postgres). Open for M1: **Pinecone has not been run against a live index**. Moved out of M1: `reenrich` and `reembed` (to M4); tests use a keyword-driven fake Jev rather than recorded fixtures, plus an opt-in live test.
+
 | Milestone | Goal | Content | Done when |
 |---|---|---|---|
 | **M1 Working core** | One document goes in and a grounded, cited answer comes out, end to end | Jev client (TypeSafe, OpenRouter, Vercel), parser, Jev chunker with `structural` fallback, enrichment, embedders (OpenAI, sentence-transformers, Ollama), first-release adapters (Section 7.6), the full retrieval path, CLI `init`/`ingest`/`query`/`inspect`, config, cache, traces | Conformance suite green on every first-release store; unit tests pass on recorded Jev fixtures; `jevrag ingest` then `jevrag query` works against each store |
 | **M2 Measured** | Defaults set by measurement, not by guess | `jevrag eval` with the built-in baselines, run on small samples of BEIR SciFact and FiQA (retrieval and re-ranking) and QASPER (long-document chunking) [UNVERIFIED: dataset licences to confirm], plus the injection test set; question wordings and thresholds tuned; RESULTS.md written | Go/no-go per stage. Jev chunking is the default only if it beats the best baseline on evidence recall@10 on at least 2 of 3 sets. Classification is on by default only if it cuts context tokens sent to the LLM by at least 40% without lowering recall@10 by more than 2 points. A stage that misses its bar ships in `shadow` mode, with the result in RESULTS.md |
 | **M3 Released** | People can install and use it | Public repo, README and KNOWN_ISSUES.md matching the shipped behaviour, PyPI package, tagged v1.0.0, CI running unit and conformance tests | `pip install` and the README quickstart work from a clean machine in under 10 minutes; every claim in the README links to RESULTS.md |
-| **M4 Coverage** | Works with every popular vector database and agent framework | Remaining native adapters, hybrid search, remaining embedders, LlamaIndex bridge, HTTP and MCP servers, LangChain and LlamaIndex retrievers, `calibrate`, `label`, packed mode measured. Order set by what M3 users ask for | Conformance green on all 13 native stores; packed-mode accuracy cost documented; Hermes can query a collection through MCP |
+| **M4 Coverage** | Works with every popular vector database and agent framework | Remaining native adapters, hybrid search, remaining embedders (native Cohere, Voyage, Gemini, Mistral), LlamaIndex bridge, HTTP and MCP servers, LangChain and LlamaIndex retrievers, `reenrich`, `reembed`, `calibrate`, `label`, packed mode measured. Order set by what M3 users ask for | Conformance green on all 13 native stores; packed-mode accuracy cost documented; Hermes can query a collection through MCP |
 
 Before M2 spends money: dry-run cost estimate, a single-document test, then the batch.
 
@@ -356,9 +359,11 @@ Targets are hypotheses until M2.
 
 ## 13. Open questions
 
-1. **Client.** Depend on the official `typesafe-sdk` (0.7.2, pre-1.0) [10], or reuse Jermes' own `httpx` client, which already speaks all three backends? Recommendation: own client, because OpenRouter and Vercel backends are needed and the SDK targets TypeSafe direct.
-2. **Default embedder** for the quickstart: local sentence-transformers (no key, slower) or OpenAI (one more key).
-3. **Hermes integration**: ship as a Jermes feature, a standalone Hermes plugin, or only the MCP server? Recommendation: standalone package first, MCP for Hermes, no Jermes coupling.
+Decided in M1: jevrag has its own async `httpx` client (adapted from Jermes) rather than depending on the pre-1.0 `typesafe-sdk` [10], because the Vercel and OpenRouter backends are needed.
+
+
+1. **Default embedder** for the quickstart: local sentence-transformers (no key, slower) or OpenAI (one more key).
+2. **Hermes integration**: ship as a Jermes feature, a standalone Hermes plugin, or only the MCP server? Recommendation: standalone package first, MCP for Hermes, no Jermes coupling.
 
 ## Sources
 

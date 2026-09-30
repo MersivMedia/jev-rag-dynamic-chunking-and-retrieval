@@ -1,0 +1,65 @@
+[project]
+name = "jev-rag-dynamic-chunking-and-retrieval"
+version = "1.0.0.dev0"
+description = "Jev-steered chunking, ingestion and retrieval for any vector database"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Mersiv Media", email = "contact@mersivmedia.com" }]
+requires-python = ">=3.10,<3.14"
+keywords = ["rag", "retrieval", "chunking", "vector-database", "jev", "typesafe", "embeddings"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+  "httpx>=0.28.1,<1",
+  "pydantic>=2.9,<3",
+  "pyyaml>=6.0.2,<7",
+]
+
+[project.optional-dependencies]
+qdrant = ["qdrant-client>=1.19,<2"]
+chroma = ["chromadb>=1.5,<2"]
+pgvector = ["psycopg[binary]>=3.2,<4", "pgvector>=0.4,<0.7"]
+pinecone = ["pinecone>=7,<11"]
+langchain = ["langchain-core>=1.0,<2"]
+local = ["sentence-transformers>=5,<7"]
+pdf = ["pymupdf>=1.26,<2"]
+docx = ["python-docx>=1.2,<2"]
+tokens = ["tiktoken>=0.9,<0.16"]
+all = [
+  "qdrant-client>=1.19,<2",
+  "chromadb>=1.5,<2",
+  "psycopg[binary]>=3.2,<4",
+  "pgvector>=0.4,<0.7",
+  "pinecone>=7,<11",
+  "langchain-core>=1.0,<2",
+  "pymupdf>=1.26,<2",
+  "python-docx>=1.2,<2",
+  "tiktoken>=0.9,<0.16",
+]
+dev = ["pytest>=8.3,<10"]
+
+[project.urls]
+Homepage = "https://github.com/MersivMedia/jev-rag-dynamic-chunking-and-retrieval"
+Issues = "https://github.com/MersivMedia/jev-rag-dynamic-chunking-and-retrieval/issues"
+
+[project.scripts]
+jevrag = "jevrag.cli:main"
+
+[build-system]
+requires = ["setuptools>=75,<90"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["jevrag*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+markers = [
+  "live: calls real Jev / embedding APIs (needs keys; skipped by default)",
+  "server: needs a running database server (skipped unless its env var is set)",
+]

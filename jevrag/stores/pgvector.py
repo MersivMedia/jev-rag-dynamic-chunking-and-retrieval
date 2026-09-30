@@ -88,7 +88,7 @@ class PgVectorStore(VectorStore):
     def upsert(self, collection: str, records: Sequence[Record]) -> None:
         if not records:
             return
-        import numpy as np  # pgvector depends on numpy
+        import numpy as np  # psycopg adapts numpy arrays to the vector type; declared in the [pgvector] extra
         t = self._t(collection)
         with self.conn.cursor() as cur:
             cur.executemany(

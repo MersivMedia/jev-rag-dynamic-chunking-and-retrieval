@@ -21,7 +21,7 @@ dependencies = [
 [project.optional-dependencies]
 qdrant = ["qdrant-client>=1.19,<2"]
 chroma = ["chromadb>=1.5,<2"]
-pgvector = ["psycopg[binary]>=3.2,<4", "pgvector>=0.4,<0.7"]
+pgvector = ["psycopg[binary]>=3.2,<4", "pgvector>=0.4,<0.7", "numpy>=1.26,<3"]
 pinecone = ["pinecone>=7,<11"]
 langchain = ["langchain-core>=1.0,<2"]
 local = ["sentence-transformers>=5,<7"]
@@ -33,6 +33,7 @@ all = [
   "chromadb>=1.5,<2",
   "psycopg[binary]>=3.2,<4",
   "pgvector>=0.4,<0.7",
+  "numpy>=1.26,<3",
   "pinecone>=7,<11",
   "langchain-core>=1.0,<2",
   "pymupdf>=1.26,<2",

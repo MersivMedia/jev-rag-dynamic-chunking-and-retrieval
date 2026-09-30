@@ -7,5 +7,7 @@ dist/
 build/
 .pytest_cache/
 .env
+.env.*
+!.env.example
 jevrag.yaml
 .ruff_cache/

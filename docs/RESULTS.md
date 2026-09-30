@@ -72,7 +72,7 @@ Per-request Jev latency in these runs: p50 230 to 380 ms, p90 240 to 470 ms.
 
 | Suite | Result |
 |---|---|
-| Offline unit and integration tests (fake Jev over `httpx.MockTransport`) plus store conformance on memory, Qdrant (embedded), Chroma and the LangChain bridge | 149 passed, 1 skipped (the opt-in live test) on Python 3.12 |
+| Offline unit and integration tests (fake Jev over `httpx.MockTransport`) plus store conformance on memory, Qdrant (embedded), Chroma and the LangChain bridge | 159 passed, 1 skipped (the opt-in live test) on Python 3.12 |
 | Store conformance against Postgres 17.11 + pgvector 0.8.6 (Docker) | 27 passed |
 | Offline tests on Python 3.10 with no extras installed (store tests skip) | passed |
 | Live end-to-end (`tests/test_live.py`) against Jev and OpenAI embeddings via Vercel AI Gateway | passed |

@@ -1,0 +1,141 @@
+# jevrag configuration: every setting, with its default.
+#   cp jevrag.example.yaml jevrag.yaml     (or run `jevrag init` for a short version)
+# Secrets never go here: keys come from the environment or .env (see .env.example).
+# Unknown keys are rejected, so a typo fails loudly instead of being ignored.
+# Thresholds are starting points, not measured defaults: tune them on your own data
+# with `jevrag query -v` and `jevrag inspect -v`.
+
+# ---------------------------------------------------------------------------
+# Jev (TypeSafe's System One model)
+# ---------------------------------------------------------------------------
+jev:
+  backend: auto                # auto | typesafe | vercel | openrouter
+                               # auto = first key found: TYPESAFE_API_KEY, AI_GATEWAY_API_KEY, OPENROUTER_API_KEY
+  # model: jev-1.13.0          # pin a version. Defaults per backend: typesafe jev-1.13.0,
+                               # vercel typesafe-ai/jev, openrouter typesafe/jev-1.13
+  # base_url:                  # override the backend's endpoint
+  # api_key_env:               # read the key from a different variable
+  cache_dir: .jevrag/cache     # answers cached by content hash; null disables the cache
+  max_rps: 30                  # requests per second (published limit: 40)
+  max_tokens_per_s: 80000      # input tokens per second (published limit: 100,000)
+  max_concurrency: 16          # requests in flight
+  timeout_s: 30
+  max_retries: 5               # on 408, 429, 5xx and 529, with backoff; honours retry-after
+  zero_data_retention: false   # Vercel only: ask the gateway not to retain request data
+  price_per_million: 0.042     # USD per million input tokens, for cost reports
+
+# ---------------------------------------------------------------------------
+# Vector database: keep exactly one `store:` block
+# ---------------------------------------------------------------------------
+store:
+  kind: memory                 # in-process; optional JSON file. For tests and small demos
+  path: .jevrag/memory-store.json
+
+# store:                       # Qdrant  (pip install "...[qdrant]")
+#   kind: qdrant
+#   url: http://localhost:6333 # or `path: .jevrag/qdrant` for embedded mode, no server
+#   api_key_env: QDRANT_API_KEY
+#   prefix: ""                 # prepended to collection names
+
+# store:                       # Chroma  (pip install "...[chroma]")
+#   kind: chroma
+#   path: .jevrag/chroma       # persistent local client
+#   # host: localhost          # or a Chroma server
+#   # port: 8000
+
+# store:                       # Postgres + pgvector  (pip install "...[pgvector]")
+#   kind: pgvector
+#   dsn_env: DATABASE_URL      # or `dsn: postgresql://...` (keep passwords out of this file)
+#   schema: public
+#   table_prefix: jevrag_      # one table per collection: jevrag_<collection>
+
+# store:                       # Pinecone  (pip install "...[pinecone]")
+#   kind: pinecone
+#   index: jevrag              # a jevrag collection is a namespace in this index; created if missing
+#   api_key_env: PINECONE_API_KEY
+#   cloud: aws                 # for index creation (or PINECONE_CLOUD)
+#   region: us-east-1          # (or PINECONE_REGION)
+
+# Any LangChain vector store: build it in Python with jevrag.stores.langchain.LangChainStore.
+
+# ---------------------------------------------------------------------------
+# Embeddings. A collection remembers its embedder; switching needs a new collection.
+# ---------------------------------------------------------------------------
+embedder:
+  model: openai:text-embedding-3-small   # needs OPENAI_API_KEY
+  # model: gateway:openai/text-embedding-3-small   # Vercel AI Gateway (AI_GATEWAY_API_KEY)
+  # model: ollama:nomic-embed-text                 # local Ollama (OLLAMA_HOST)
+  # model: local:BAAI/bge-small-en-v1.5            # sentence-transformers, pip install "...[local]"
+  # model: hash:256                                # deterministic, no semantic quality: tests only
+  batch_size: 128
+  # dimensions: 512            # OpenAI-compatible providers that support shortening
+  # base_url: https://my-openai-compatible-host/v1
+  # api_key_env: MY_EMBEDDING_KEY
+
+# ---------------------------------------------------------------------------
+# Chunking
+# ---------------------------------------------------------------------------
+chunking:
+  method: jev                  # jev | structural | fixed | semantic-embedding
+  mode: on                     # on | shadow (log Jev's cuts, store structural) | off
+  min_tokens: 64               # smaller chunks merge into a neighbour
+  target_tokens: 350
+  max_tokens: 800              # hard limit
+  overlap_tokens: 0            # `fixed` method only
+  boundary:                    # Jev boundary questions
+    style: inline              # inline (each question carries its sentence pair) | keyed (fewer tokens)
+    window_units: 24           # sentences per request window
+    overlap_units: 4
+    w_continues: 0.6           # cut cost = w_continues * continues + w_refers_back * refers_back
+    w_refers_back: 0.4
+    paragraph_discount: 0.7    # cost multiplier at a paragraph break (cuts there are cheaper)
+    protect_refers_back: 0.5   # never cut a gap this dependent unless max_tokens forces it
+
+# ---------------------------------------------------------------------------
+# Enrichment: quality screen and tags, one Jev request per chunk
+# ---------------------------------------------------------------------------
+enrich:
+  mode: on                     # on | shadow (score and log, keep everything) | off
+  drop_low_information: 0.85
+  drop_boilerplate: 0.85
+  quarantine_instructs_ai: 0.70   # stored with quarantined=true, excluded from queries
+  tag_min_confidence: 0.50        # below this the tag is stored as `unknown`
+  # taxonomy: taxonomy.yaml       # fields to tag and custom questions; see the README
+
+# ---------------------------------------------------------------------------
+# Retrieval
+# ---------------------------------------------------------------------------
+retrieve:
+  top_k: 30                    # candidates from the vector search; each costs one Jev request
+  include_quarantined: false
+  expand_neighbours: false     # pull in adjacent chunks around ones that aren't self-contained
+  expand_below_self_contained: 0.5
+  expand_max_tokens: 1200
+  route:                       # taxonomy-based metadata filter (needs `route: true` fields)
+    mode: on
+    min_confidence: 0.60       # filter to the top option at or above this confidence
+    top2_mass: 0.80            # else filter to the top two if together at or above this
+    min_candidates: 5          # retry unfiltered if the filter returns fewer hits
+  classify:                    # four questions per candidate passage
+    mode: on
+    drop_instructs_ai: 0.70
+    min_relevant: 0.50
+    min_evidence: 0.40
+    conflict: 0.60             # contradicts the query's premise -> conflict block
+    max_passages: 8
+    max_passage_chars: 6000
+  gate:                        # can the kept passages answer the question?
+    mode: on
+    answer_min: 0.35           # below this: abstain, no LLM call
+    max_passage_chars: 3000
+
+# ---------------------------------------------------------------------------
+# Answer LLM: only for Pipeline.answer() and `jevrag query --answer`
+# ---------------------------------------------------------------------------
+answer:
+  provider: openai             # openai (OPENAI_API_KEY) | anthropic (ANTHROPIC_API_KEY) | gateway (AI_GATEWAY_API_KEY)
+  model: gpt-4.1-mini          # gateway models look like openai/gpt-4.1-mini
+  # base_url:                  # any OpenAI-compatible API
+  # api_key_env:
+  max_tokens: 800
+  temperature: 0.0

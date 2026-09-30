@@ -276,7 +276,7 @@ The LangChain bridge in the first release means any database with a LangChain in
 |---|---|
 | FR-X1 | Python API, sync and async: `Pipeline.from_config(...)`, `.ingest(paths_or_docs)`, `.retrieve(query)`, `.answer(query)` |
 | FR-X2 | CLI: `init`, `ingest`, `query`, `delete`, `reenrich`, `reembed`, `inspect` (show a document's chunks and cut scores), `eval`, `calibrate`, `cost`, `serve`, `mcp` |
-| FR-X3 | One `jevrag.yaml` for all settings; secrets only from the environment |
+| FR-X3 | One `jevrag.yaml` for all settings; secrets only from the environment, which the CLI can load from a `.env` file. The repo ships `jevrag.example.yaml` (every setting, commented) and `.env.example` (every variable, blank); tests fail if either drifts from the code |
 | FR-X4 | Optional HTTP server (FastAPI extra): `/ingest`, `/retrieve`, `/answer`, `/health` |
 | FR-X5 | Optional MCP server exposing `search_knowledge` and `ingest_documents`, so Hermes and other agents can use a collection as a tool |
 | FR-X6 | LangChain `BaseRetriever` and LlamaIndex retriever wrappers |

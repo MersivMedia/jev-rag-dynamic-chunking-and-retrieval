@@ -10,7 +10,7 @@ Jev-steered chunking, ingestion and retrieval for any vector database.
 - **Your database.** Adapters for Postgres + pgvector, Qdrant, Chroma and Pinecone, plus a bridge to any LangChain vector store, all held to one conformance suite.
 - **Cheap.** A small end-to-end run cost $0.00024 of Jev to ingest four documents and under $0.0001 per query ([measured](docs/RESULTS.md)). Jev charges $0.042 per million input tokens and nothing for output.
 
-> **Status: v1.0 in development.** The pipeline below is built and tested: 149 offline tests, the store conformance suite against real Postgres + pgvector, and a live end-to-end test against Jev. Retrieval-quality benchmarks against baseline chunkers and re-rankers are not done yet: see [Results](docs/RESULTS.md) for what has and hasn't been measured, and [Known issues](docs/KNOWN_ISSUES.md).
+> **Status: v1.0 in development.** The pipeline below is built and tested: 159 offline tests, the store conformance suite against real Postgres + pgvector, and a live end-to-end test against Jev. Retrieval-quality benchmarks against baseline chunkers and re-rankers are not done yet: see [Results](docs/RESULTS.md) for what has and hasn't been measured, and [Known issues](docs/KNOWN_ISSUES.md).
 
 jevrag uses [Jev](https://docs.typesafe.ai/introduction), TypeSafe AI's System One model. Jev never writes text. It answers typed questions (a yes/no probability, one option from a list, or a score on a scale), and plain code with visible thresholds decides what happens. Every decision is logged with its probabilities.
 
@@ -70,15 +70,18 @@ Set one Jev key. jevrag uses the first one it finds, in this order:
 
 Then add the key for your embedding provider (`OPENAI_API_KEY`, or reuse `AI_GATEWAY_API_KEY` with the `gateway:` embedder) and your database's connection settings.
 
+Put them in a `.env` file: [`.env.example`](.env.example) lists every variable jevrag reads, blank, with a note on each. The `jevrag` CLI loads `./.env` before every command. Variables already set in your shell win, blank lines in the file are ignored, and it warns if the file is readable by other users. Use `--env-file path` for another file or `--no-env-file` to skip it. The Python API doesn't read `.env` on its own; call `jevrag.envfile.load_env_file()` first if you want the same behaviour.
+
 Without a Jev key everything still runs, but chunking falls back to `structural`, nothing is screened or tagged, and retrieval returns plain vector ranking marked `degraded`.
 
 ## Quickstart
 
 ```bash
 docker run -d -p 6333:6333 qdrant/qdrant       # or any supported database
-export TYPESAFE_API_KEY=...  OPENAI_API_KEY=...
 
 jevrag init --store qdrant --embedder openai:text-embedding-3-small
+                                               # writes jevrag.yaml, plus a blank .env (chmod 600) if none exists
+# edit .env: set TYPESAFE_API_KEY (or another Jev key) and OPENAI_API_KEY
 jevrag check                                   # one Jev call, one embedding, one store round trip
 jevrag ingest ./docs --collection handbook --dry-run
 jevrag ingest ./docs --collection handbook
@@ -109,7 +112,12 @@ Every sync method has an async twin (`aingest`, `aretrieve`, `aanswer`) for use 
 
 ## Configure
 
-`jevrag init` writes `jevrag.yaml`. Secrets come only from the environment.
+Two sample files at the repo root:
+
+- [`jevrag.example.yaml`](jevrag.example.yaml): every setting with its default and a comment, plus a ready-to-uncomment block for each database. `jevrag init --full` writes the same file. Plain `jevrag init` writes the short version below.
+- [`.env.example`](.env.example): every environment variable, blank.
+
+Secrets never go in the YAML; it only names the variable to read (`api_key_env`, `dsn_env`). The short config:
 
 ```yaml
 jev:
@@ -489,7 +497,7 @@ class MyStore(VectorStore):
 
 | Command | What it does |
 |---|---|
-| `jevrag init --store <kind> --embedder <spec>` | Write a starter `jevrag.yaml` |
+| `jevrag init --store <kind> --embedder <spec>` | Write a starter `jevrag.yaml` and, if missing, a blank `.env`. `--full` for every setting; `--force` overwrites the YAML (never `.env`) |
 | `jevrag check` | One Jev call, one embedding, one store round trip |
 | `jevrag ingest <paths...> --collection <name>` | Parse, chunk, enrich, embed, store. `--dry-run`, `--limit N`, `--force`, `-v`, `--json` |
 | `jevrag query "<question>" --collection <name>` | Retrieve. `--where JSON`, `--top-k`, `--no-route`, `--retrieve-only`, `--answer`, `-v`, `--json` |
@@ -497,7 +505,7 @@ class MyStore(VectorStore):
 | `jevrag inspect --collection <name>` | List stored records with tags and scores. `--quarantined` |
 | `jevrag delete --collection <name> --doc <doc_id>` | Delete one document's records |
 
-`-c path/to/jevrag.yaml` selects a config file. Set `JEVRAG_DEBUG=1` for full tracebacks.
+`-c path/to/jevrag.yaml` selects a config file; `--env-file path` or `--no-env-file` controls `.env` loading (both go before the command). Set `JEVRAG_DEBUG=1` for full tracebacks.
 
 ## Cost and limits
 

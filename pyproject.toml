@@ -56,6 +56,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["jevrag*"]
 
+[tool.setuptools.package-data]
+jevrag = ["templates/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

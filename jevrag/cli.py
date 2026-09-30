@@ -30,14 +30,33 @@ def _emit(args: argparse.Namespace, obj: Any) -> None:
 
 # -- commands -----------------------------------------------------------------------
 
+def _template(name: str) -> str:
+    from importlib.resources import files
+    return files("jevrag").joinpath("templates", name).read_text(encoding="utf-8")
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     path = Path(args.config)
     if path.exists() and not args.force:
         print(f"{path} already exists (use --force to overwrite)", file=sys.stderr)
         return 1
-    path.write_text(render_template(args.store, args.embedder))
-    print(f"wrote {path} (store: {args.store}, embedder: {args.embedder})")
-    print("next: export a Jev key (TYPESAFE_API_KEY, AI_GATEWAY_API_KEY or OPENROUTER_API_KEY), then `jevrag check`")
+    if args.full:
+        path.write_text(_template("jevrag.example.yaml"))
+        print(f"wrote {path} (every setting, with defaults; pick one store block)")
+    else:
+        path.write_text(render_template(args.store, args.embedder))
+        print(f"wrote {path} (store: {args.store}, embedder: {args.embedder})")
+    env = Path(args.env_file or ".env")
+    if env.exists():
+        print(f"kept existing {env}")
+    else:
+        env.write_text(_template("env.example"))
+        try:
+            env.chmod(0o600)
+        except OSError:
+            pass
+        print(f"wrote {env} (blank; fill in a Jev key and your embedding key, keep it out of git)")
+    print("next: `jevrag check`")
     return 0
 
 
@@ -208,12 +227,15 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="jevrag", description="Jev-steered chunking, ingestion and retrieval")
     p.add_argument("--version", action="version", version=f"jevrag {__version__}")
     p.add_argument("-c", "--config", default=DEFAULT_FILE, help=f"config file (default {DEFAULT_FILE})")
+    p.add_argument("--env-file", default=None, help="load environment variables from this file (default ./.env)")
+    p.add_argument("--no-env-file", action="store_true", help="don't load a .env file")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("init", help="write a starter jevrag.yaml")
     s.add_argument("--store", default="memory", choices=sorted(STORE_TEMPLATES))
     s.add_argument("--embedder", default="openai:text-embedding-3-small")
-    s.add_argument("--force", action="store_true")
+    s.add_argument("--full", action="store_true", help="write every setting with comments (same as jevrag.example.yaml)")
+    s.add_argument("--force", action="store_true", help="overwrite an existing config (never overwrites .env)")
     s.set_defaults(fn=cmd_init)
 
     s = sub.add_parser("check", help="one live Jev call, one embedding, one store round trip")
@@ -260,9 +282,27 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _load_env(args: argparse.Namespace) -> None:
+    """Load ./.env (or --env-file) before any command; shell variables win."""
+    if args.no_env_file or args.cmd == "init":
+        return
+    from .envfile import load_env_file
+    path = Path(args.env_file or ".env")
+    if args.env_file and not path.is_file():
+        raise FileNotFoundError(f"--env-file {path} not found")
+    if not path.is_file():
+        return
+    if os.name == "posix" and path.stat().st_mode & 0o077:
+        print(f"warning: {path} is readable by other users; run `chmod 600 {path}`", file=sys.stderr)
+    applied = load_env_file(path)
+    if args.cmd == "check":
+        print(f"env       {len(applied)} variables from {path}" + (f": {', '.join(applied)}" if applied else ""))
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        _load_env(args)
         return int(args.fn(args) or 0)
     except KeyboardInterrupt:
         return 130

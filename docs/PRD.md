@@ -1,7 +1,7 @@
 | FR-C2 | **Boundary questions.** Within each section, for each adjacent sentence pair, ask two Nouls in one packed request per window. The state is the window's text; each question carries its own pair inline as `{previous, sentence, question}`. `continues`: "In the document, does `sentence` continue the specific point that `previous` is making?" `refers_back`: "Does `sentence` depend on `previous` to be understood, for example by referring back to it with words like this, it, these or such?" Questions must not point at sentences by list position: in a labelled probe, `sentences[i]`-style references gave a mean absolute error of 0.63 against 0.07 for inline pairs and 0.10 for named keys (RESULTS.md). Windows are sized to the state budget and overlap by 4 units; each gap is asked in the window where it sits furthest from an edge. Wording is tuned further in M2 [7] |
-# jev-rag-dynamic-chunking-and-retrieval: Product Requirements Document
+# jev-rag-retrieval: Product Requirements Document
 
-Name: **jev-rag-dynamic-chunking-and-retrieval**: repository `MersivMedia/jev-rag-dynamic-chunking-and-retrieval` and PyPI package `jev-rag-dynamic-chunking-and-retrieval`. Short forms: Python import `jevrag`, CLI command `jevrag`. "jevrag" below means the tool.
+Name: **jev-rag-retrieval**: repository `MersivMedia/jev-rag-retrieval` and PyPI package `jev-rag-retrieval`. Short forms: Python import `jevrag`, CLI command `jevrag`. "jevrag" below means the tool.
 
 Source material: "Jev chunking and ingestion for RAG" sample design and code [1].
 
@@ -146,7 +146,7 @@ Every Jev stage has a code-only fallback and a mode: `off`, `shadow` (compute an
 ### 6.1 Repository layout
 
 ```
-jev-rag-dynamic-chunking-and-retrieval/
+jev-rag-retrieval/
   jevrag/         Python package
     jev/          client, backends, batching, cache, rate limiter
     parse/        loaders (txt, md, html, pdf, docx), block + sentence segmentation
@@ -312,7 +312,7 @@ Estimates, not measurements; M2 replaces them.
 | NFR-2 | **Fall back at ingestion.** Jev chunking failure falls back to `structural`; enrichment failure stores `unknown` tags and marks chunks for `reenrich` |
 | NFR-3 | **Determinism.** Same inputs, config and cached answers produce the same chunks, IDs and routing |
 | NFR-4 | **Security.** Keys from the environment only, never logged; traces redact text unless `trace.include_text` is set. Quarantined chunks stay out of prompts by default. Injection screening is one layer among several |
-| NFR-5 | **Dependencies.** Python 3.10+. Core depends only on `httpx`, `pydantic` and `pyyaml`; every database, embedder, loader and server is an extra (`pip install "jev-rag-dynamic-chunking-and-retrieval[qdrant,openai]"`). Every dependency has an upper bound (`>=floor,<next_major`) |
+| NFR-5 | **Dependencies.** Python 3.10+. Core depends only on `httpx`, `pydantic` and `pyyaml`; every database, embedder, loader and server is an extra (`pip install "jev-rag-retrieval[qdrant,openai]"`). Every dependency has an upper bound (`>=floor,<next_major`) |
 | NFR-6 | **Observability.** JSON trace per ingest and query; optional OpenTelemetry spans |
 | NFR-7 | **Tests.** Unit tests on recorded Jev fixtures, no network in default CI; adapter conformance in docker-compose; a nightly live Jev smoke test |
 | NFR-8 | **Documentation.** README with features first, install, configure, a full ingestion guide and a full retrieval guide; results and known issues in linked pages; every claim cites its measurement |

@@ -28,7 +28,7 @@ class QdrantStore(VectorStore):
         try:
             from qdrant_client import QdrantClient, models  # type: ignore
         except ImportError as exc:
-            raise ImportError('Qdrant needs: pip install "jev-rag-dynamic-chunking-and-retrieval[qdrant]"') from exc
+            raise ImportError('Qdrant needs: pip install "jev-rag-retrieval[qdrant]"') from exc
         self.m = models
         if client is not None:
             self.c = client

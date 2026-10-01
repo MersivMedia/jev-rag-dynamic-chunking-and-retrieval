@@ -147,7 +147,7 @@ def load_file(path: str, doc_id: Optional[str] = None, root: Optional[str] = Non
         try:
             import pymupdf  # type: ignore  # noqa: F401
         except ImportError as exc:
-            raise ImportError('PDF support needs the pdf extra: pip install "jev-rag-dynamic-chunking-and-retrieval[pdf]"') from exc
+            raise ImportError('PDF support needs the pdf extra: pip install "jev-rag-retrieval[pdf]"') from exc
         from .pdf import pdf_to_markdown
         title, text = pdf_to_markdown(str(p))
         return Document(text=text, doc_id=did, title=title or p.stem, source_uri=uri, format="markdown")
@@ -155,7 +155,7 @@ def load_file(path: str, doc_id: Optional[str] = None, root: Optional[str] = Non
         try:
             import docx  # type: ignore
         except ImportError as exc:
-            raise ImportError('DOCX support needs the docx extra: pip install "jev-rag-dynamic-chunking-and-retrieval[docx]"') from exc
+            raise ImportError('DOCX support needs the docx extra: pip install "jev-rag-retrieval[docx]"') from exc
         d = docx.Document(str(p))
         parts: List[str] = []
         for para in d.paragraphs:

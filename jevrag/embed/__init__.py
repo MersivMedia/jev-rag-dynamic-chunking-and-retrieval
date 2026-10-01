@@ -162,7 +162,7 @@ class SentenceTransformers(Embedder):
         try:
             from sentence_transformers import SentenceTransformer  # type: ignore
         except ImportError as exc:
-            raise ImportError('local embeddings need: pip install "jev-rag-dynamic-chunking-and-retrieval[local]"') from exc
+            raise ImportError('local embeddings need: pip install "jev-rag-retrieval[local]"') from exc
         self.provider = "local"
         self.model = model
         self.batch_size = batch_size

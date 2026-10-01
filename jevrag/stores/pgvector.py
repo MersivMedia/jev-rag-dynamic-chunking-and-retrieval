@@ -30,7 +30,7 @@ class PgVectorStore(VectorStore):
         try:
             import psycopg  # type: ignore
         except ImportError as exc:
-            raise ImportError('pgvector needs: pip install "jev-rag-dynamic-chunking-and-retrieval[pgvector]"') from exc
+            raise ImportError('pgvector needs: pip install "jev-rag-retrieval[pgvector]"') from exc
         self.schema = safe_name(schema)
         self.prefix = table_prefix
         self.conn = conn or psycopg.connect(dsn or os.environ.get("DATABASE_URL", ""), autocommit=True)

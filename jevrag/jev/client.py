@@ -229,7 +229,7 @@ class JevClient:
     async def __aenter__(self) -> "JevClient":
         self._http = httpx.AsyncClient(
             transport=self._transport,
-            headers={"User-Agent": f"jevrag/{__version__} (+https://github.com/MersivMedia/jev-rag-dynamic-chunking-and-retrieval)"},
+            headers={"User-Agent": f"jevrag/{__version__} (+https://github.com/MersivMedia/jev-rag-retrieval)"},
             timeout=self.config.timeout_s,
         )
         self._limiter = _Limiter(self.config.max_rps, self.config.max_tokens_per_s)

@@ -35,7 +35,7 @@ class PineconeStore(VectorStore):
         try:
             from pinecone import Pinecone  # type: ignore
         except ImportError as exc:
-            raise ImportError('Pinecone needs: pip install "jev-rag-dynamic-chunking-and-retrieval[pinecone]"') from exc
+            raise ImportError('Pinecone needs: pip install "jev-rag-retrieval[pinecone]"') from exc
         self.pc = client or Pinecone(api_key=api_key or os.environ.get("PINECONE_API_KEY"))
         self.index_name = index
         self.cloud = cloud or os.environ.get("PINECONE_CLOUD", "aws")

@@ -56,7 +56,7 @@ INGEST = ["Apollo 11", "Python (programming language)", "French Revolution", "Mo
           "Great Depression", "Photosynthesis", "CRISPR gene editing", "Tardigrade", "Byzantine Empire"]
 HOLDOUT = ["Apollo 12", "Ruby (programming language)", "Russian Revolution", "K2", "Vacuum tube",
            "Chemosynthesis"]
-UA = "jevrag-bench/1.0 (https://github.com/MersivMedia/jev-rag-dynamic-chunking-and-retrieval)"
+UA = "jevrag-bench/1.0 (https://github.com/MersivMedia/jev-rag-retrieval)"
 GATEWAY = "https://ai-gateway.vercel.sh/v1/chat/completions"
 QGEN_MODEL = "openai/gpt-4.1-mini"
 EMBEDDER = "gateway:openai/text-embedding-3-small"

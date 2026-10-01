@@ -1,4 +1,4 @@
-# jev-rag-dynamic-chunking-and-retrieval
+# jev-rag-retrieval
 
 Jev-steered ingestion and retrieval for any vector database.
 
@@ -42,12 +42,12 @@ jevrag uses [Jev](https://docs.typesafe.ai/introduction), TypeSafe AI's System O
 
 ## Install
 
-Python 3.10 to 3.13. The package installs as `jev-rag-dynamic-chunking-and-retrieval`; you import it as `jevrag` and run it as the `jevrag` command. The core needs only `httpx`, `pydantic` and `pyyaml`; each database, embedder and file format is an extra.
+Python 3.10 to 3.13. The package installs as `jev-rag-retrieval`; you import it as `jevrag` and run it as the `jevrag` command. The core needs only `httpx`, `pydantic` and `pyyaml`; each database, embedder and file format is an extra.
 
 Until the first PyPI release, install from GitHub:
 
 ```bash
-pip install "jev-rag-dynamic-chunking-and-retrieval[qdrant] @ git+https://github.com/MersivMedia/jev-rag-dynamic-chunking-and-retrieval"
+pip install "jev-rag-retrieval[qdrant] @ git+https://github.com/MersivMedia/jev-rag-retrieval"
 ```
 
 | Extra | Installs |

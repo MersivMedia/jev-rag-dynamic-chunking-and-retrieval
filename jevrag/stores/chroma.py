@@ -26,7 +26,7 @@ class ChromaStore(VectorStore):
         try:
             import chromadb  # type: ignore
         except ImportError as exc:
-            raise ImportError('Chroma needs: pip install "jev-rag-dynamic-chunking-and-retrieval[chroma]"') from exc
+            raise ImportError('Chroma needs: pip install "jev-rag-retrieval[chroma]"') from exc
         if client is not None:
             self.c = client
         elif host:

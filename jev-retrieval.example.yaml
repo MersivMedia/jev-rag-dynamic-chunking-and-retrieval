@@ -123,6 +123,8 @@ retrieve:
     min_candidates: 5          # retry unfiltered if the filter returns fewer hits
   classify:                    # four questions per candidate passage
     mode: on
+    select: threshold          # threshold: keep passages above min_relevant/min_evidence
+                               # rank: keep the top max_passages by evidence score (see docs/RESULTS.md)
     drop_instructs_ai: 0.70
     min_relevant: 0.50
     min_evidence: 0.40

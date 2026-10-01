@@ -17,10 +17,12 @@ accounting. Any failure raises :class:`JevError`; callers decide how to fall bac
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import random
 import time
+import weakref
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
@@ -194,8 +196,31 @@ class _Limiter:
         self._req = min(self._req, -seconds * self.rps)
 
 
+_SHARED: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, Dict[Tuple[str, ...], Tuple[_Limiter, asyncio.Semaphore]]]" = \
+    weakref.WeakKeyDictionary()
+
+
+def _shared_limits(key: Tuple[str, ...], rps: float, tps: float, concurrency: int) -> Tuple[_Limiter, asyncio.Semaphore]:
+    """One limiter and semaphore per (event loop, backend, endpoint, key fingerprint).
+
+    Jev's rate limit is per API key, not per client object. ``Pipeline`` opens a
+    client per call, so without sharing, N concurrent retrievals would each get
+    the full budget and together exceed the published limit.
+    """
+    loop = asyncio.get_running_loop()
+    per_loop = _SHARED.setdefault(loop, {})
+    if key not in per_loop:
+        per_loop[key] = (_Limiter(rps, tps), asyncio.Semaphore(concurrency))
+    return per_loop[key]
+
+
 class JevClient:
-    """Use as ``async with JevClient(config) as jev: await jev.ask(state, questions)``."""
+    """Use as ``async with JevClient(config) as jev: await jev.ask(state, questions)``.
+
+    Clients on one event loop that use the same backend and key share one rate
+    limiter and one concurrency cap (``max_rps``, ``max_tokens_per_s``,
+    ``max_concurrency``), so opening many clients doesn't multiply the budget.
+    """
 
     def __init__(self, config: Optional[JevConfig] = None, *, transport: Optional[httpx.AsyncBaseTransport] = None,
                  cache: Optional[AnswerCache] = None) -> None:
@@ -232,8 +257,11 @@ class JevClient:
             headers={"User-Agent": f"jev-retrieval/{__version__} (+https://github.com/MersivMedia/jev-rag-retrieval)"},
             timeout=self.config.timeout_s,
         )
-        self._limiter = _Limiter(self.config.max_rps, self.config.max_tokens_per_s)
-        self._sem = asyncio.Semaphore(self.config.max_concurrency)
+        r = self.resolved if self.available() else {"backend": "none", "base_url": "", "api_key": ""}
+        fingerprint = hashlib.sha256(str(r.get("api_key", "")).encode()).hexdigest()[:16]
+        key = (str(r.get("backend", "")), str(r.get("base_url", "")), fingerprint, str(id(self._transport) if self._transport else ""))
+        self._limiter, self._sem = _shared_limits(key, self.config.max_rps, self.config.max_tokens_per_s,
+                                                  self.config.max_concurrency)
         return self
 
     async def __aexit__(self, *exc: Any) -> None:

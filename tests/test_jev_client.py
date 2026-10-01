@@ -118,3 +118,40 @@ def test_oversize_request_refused(fake_jev):
 
     with pytest.raises(JevError, match="budget"):
         run(go())
+
+
+def test_clients_sharing_a_key_share_one_rate_budget(monkeypatch):
+    """Jev limits are per key: two clients opened at once must not double the request rate."""
+    import asyncio
+    import time
+
+    import httpx
+
+    from jev_retrieval.jev.client import JevClient, JevConfig
+    from jev_retrieval.jev.questions import Noul
+
+    monkeypatch.setenv("TYPESAFE_API_KEY", "test-key")
+    stamps = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        stamps.append(time.monotonic())
+        return httpx.Response(200, json={"model": "jev", "answers": {"q": {"type": "noul", "noul": 0.5}},
+                                         "usage": {"input_tokens": 10, "output_tokens": 1}})
+
+    transport = httpx.MockTransport(handler)
+    cfg = JevConfig(backend="typesafe", cache_dir=None, max_rps=10, max_concurrency=16)
+
+    async def worker(i: int) -> None:
+        async with JevClient(cfg, transport=transport) as jev:
+            for j in range(10):
+                await jev.ask({"i": i, "j": j}, {"q": Noul("x?")})
+
+    async def go() -> float:
+        t0 = time.monotonic()
+        await asyncio.gather(worker(1), worker(2))
+        return time.monotonic() - t0
+
+    elapsed = asyncio.run(go())
+    assert len(stamps) == 20
+    # 20 requests at 10/s with a 10-request burst: at least ~1 s when shared, ~0 s if each client had its own budget
+    assert elapsed >= 0.9, elapsed

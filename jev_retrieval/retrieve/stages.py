@@ -47,13 +47,28 @@ class RouteConfig:
 
 @dataclass
 class ClassifyConfig:
+    """How Jev's passage scores pick what the LLM sees.
+
+    ``select="threshold"``: keep passages above ``min_relevant`` and
+    ``min_evidence``, up to ``max_passages``. Returns few passages, and on the
+    M2 public sets lost recall (RESULTS.md).
+    ``select="rank"``: order every candidate by its evidence score and keep the
+    top ``max_passages``; only injections (``drop_instructs_ai``) are dropped.
+    Conflicts are routed the same way in both modes.
+    """
+
     mode: str = "on"
+    select: str = "threshold"  # threshold | rank
     drop_instructs_ai: float = 0.70
     min_relevant: float = 0.50
     min_evidence: float = 0.40
     conflict: float = 0.60
     max_passages: int = 8
     max_passage_chars: int = 6000
+
+    def __post_init__(self) -> None:
+        if self.select not in ("threshold", "rank"):
+            raise ValueError(f"classify.select must be 'threshold' or 'rank', not {self.select!r}")
 
 
 @dataclass
@@ -138,9 +153,17 @@ async def recall(store: VectorStore, collection: str, vector: List[float], where
 # -- 3. classify ----------------------------------------------------------------
 
 def route_passage(scores: Mapping[str, float], cfg: ClassifyConfig) -> str:
-    """First match wins: injection -> drop; relevant & contradicts -> conflict; relevant & evidence -> include."""
+    """First match wins: injection -> drop; relevant & contradicts -> conflict; relevant & evidence -> include.
+
+    In ``rank`` mode every non-injection, non-conflict passage is ``include``;
+    ``select_passages`` then keeps the top ``max_passages`` by evidence score.
+    """
     if scores.get("instructs_ai", 0.0) >= cfg.drop_instructs_ai:
         return "drop:instructs_ai"
+    if cfg.select == "rank":
+        if scores.get("is_relevant", 0.0) >= cfg.min_relevant and scores.get("contradicts_query_premise", 0.0) >= cfg.conflict:
+            return "conflict"
+        return "include"
     relevant = scores.get("is_relevant", 0.0) >= cfg.min_relevant
     if not relevant:
         return "drop:off_topic"
@@ -173,8 +196,18 @@ async def classify(jev: JevClient, query: str, passages: List[Passage], cfg: Cla
         else:
             p.reason = decision.split(":", 1)[1]
             drop.append(p)
-    inc.sort(key=lambda p: (-(p.scores.get("contains_answer_evidence", -1.0)), -p.vector_score))
+    inc.sort(key=evidence_order)
     return inc, con, drop, errors
+
+
+def evidence_order(p: Any) -> Tuple[float, float]:
+    """Sort key: Jev evidence score (unscored passages last among scored), then vector score.
+
+    Shared by the live pipeline and the evaluation harness so both rank identically.
+    """
+    scores = p.scores if isinstance(p, Passage) else (p.get("jev") or {})
+    vs = p.vector_score if isinstance(p, Passage) else p["vs"]
+    return (-float(scores.get("contains_answer_evidence", -1.0)), -float(vs))
 
 
 # -- 4. expand ------------------------------------------------------------------

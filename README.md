@@ -4,13 +4,13 @@ Jev-steered ingestion and retrieval for any vector database.
 
 **Keep junk and planted instructions out of your index, send your LLM only the passages that answer the question, and refuse when nothing does, on the vector database you already use.**
 
-- **Less context, fewer wrong answers.** Each retrieved passage is classified as evidence, a conflict with the question, or noise. A final check abstains when the passages can't answer, before any LLM call. Measured: the answer ranked first for 96.5% of questions against 79% for plain vector search, with about 75% less context.
+- **A better order for the passages you already retrieve.** Jev scores every retrieved passage as evidence, a conflict with the question, or noise. On three public datasets with human labels, ranking by Jev's evidence score matched or beat a gpt-4.1-mini re-ranker on every set at a quarter to a third of the cost, and on QASPER put the evidence first for 66% of questions against 53% for vector search ([Results](docs/RESULTS.md#public-datasets-m2-scifact-fiqa-qasper)). A final check can abstain before any LLM call when the passages can't answer; on real unanswerable questions it caught 29 to 41% ([Results]({R})).
 - **A cleaner index.** Every paragraph is screened before chunking: boilerplate is cut, and text that tries to instruct an AI is quarantined on its own, before anything is embedded. Every chunk can be tagged against your own taxonomy, with probabilities.
 - **Chunking that respects structure.** The default `structural` chunker never crosses a heading and keeps tables and code whole, with no Jev calls. Jev-placed cuts (`method: jev`) are available, but they haven't beaten structural chunking in any benchmark yet ([Results](docs/RESULTS.md#paragraph-level-screening-rerun-of-the-messy-benchmark)).
 - **Your database.** Adapters for Postgres + pgvector, Qdrant and Chroma, plus a bridge to any LangChain vector store, all held to one conformance suite. A Pinecone adapter is included as experimental.
 - **Cheap.** A small end-to-end run cost $0.00024 of Jev to ingest four documents and under $0.0001 per query ([measured](docs/RESULTS.md)). Jev charges $0.042 per million input tokens and nothing for output.
 
-> **Status: v1.0 in development.** The pipeline below is built and tested: 167 offline tests, the store conformance suite against real Postgres + pgvector, and a live end-to-end test against Jev. A first benchmark on 97,000 words of Wikipedia with 156 questions is done: Jev retrieval ranked the evidence first for 96.5% of questions against 79% for plain vector search, sent about 75% less context, and abstained on 40 of 42 unanswerable questions, while Jev chunking did no better than structural chunking. A second benchmark on messy PDFs, raw web pages and transcripts with planted junk and injections found the same pattern. It also found that Jev classification kept every planted injection out of the answer model's context. Screening each paragraph before chunking then raised the hit rate on that set from 93.4% to 96.7%. It quarantined all 6 injections without hiding any real answers, and removed 11 of 12 planted junk paragraphs. See [Results](docs/RESULTS.md) for how it was measured, its limits, and what hasn't been measured yet, and [Known issues](docs/KNOWN_ISSUES.md).
+> **Status: v1.0 in development.** The pipeline below is built and tested: 180 offline tests, the store conformance suite against real Postgres + pgvector, and a live end-to-end test against Jev. Measured on SciFact, FiQA and QASPER ([Results](docs/RESULTS.md#public-datasets-m2-scifact-fiqa-qasper)): the shipped `select: threshold` classification sends 34 to 83% less context but **loses recall on all three sets** (22 points on SciFact), failing the bar this project set for it. `select: rank` (keep the top 5 by Jev's evidence score) passed on SciFact and QASPER and lost 4.9 points of recall on FiQA. The answer gate wrongly refused 26% of SciFact queries, which are claims rather than questions. Earlier in-house benchmarks with machine-written questions looked much better than this; see [Results](docs/RESULTS.md) for all of it, and [Known issues](docs/KNOWN_ISSUES.md).
 
 jev-retrieval uses [Jev](https://docs.typesafe.ai/introduction), TypeSafe AI's System One model. Jev never writes text. It answers typed questions (a yes/no probability, one option from a list, or a score on a scale), and plain code with visible thresholds decides what happens. Every decision is logged with its probabilities.
 
@@ -23,7 +23,7 @@ jev-retrieval uses [Jev](https://docs.typesafe.ai/introduction), TypeSafe AI's S
 | Quality screen | Is this chunk filler or boilerplate? Does it contain instructions aimed at an AI? Is it self-contained? | Drops, quarantines or keeps it |
 | Tagging | Which option of each taxonomy field fits, including `other` | Stores the tag only when confident; always stores the probability |
 | Query routing | Which taxonomy value the question is about | Applies a metadata filter only when confident; retries unfiltered if it returns too little |
-| Passage classification | Relevant? Usable evidence? Contradicts the question's premise? Instructions aimed at an AI? | Includes, marks as a conflict, or drops; ranks what's kept |
+| Passage classification | Relevant? Usable evidence? Contradicts the question's premise? Instructions aimed at an AI? | Drops injections, marks conflicts, and ranks the rest by evidence score; `select: threshold` also drops low scorers, `select: rank` keeps the top N |
 | Answer gate | Can these passages answer the question? | Abstains without calling the LLM, or builds the prompt |
 
 ## Contents
@@ -159,6 +159,7 @@ retrieve:
   route: { mode: on, min_confidence: 0.60, top2_mass: 0.80, min_candidates: 5 }
   classify:
     mode: on
+    select: threshold        # or rank: top max_passages by evidence score (docs/RESULTS.md)
     drop_instructs_ai: 0.70
     min_relevant: 0.50
     min_evidence: 0.40
@@ -530,6 +531,7 @@ class MyStore(VectorStore):
 | `jev-retrieval inspect <file>` | Show how a file would be chunked. `--compare jev,fixed`, `-v` for Jev cut scores |
 | `jev-retrieval inspect --collection <name>` | List stored records with tags and scores. `--quarantined` |
 | `jev-retrieval delete --collection <name> --doc <doc_id>` | Delete one document's records |
+| `jev-retrieval eval <dataset> --collection <name>` | Measure retrieval on labelled data (`beir:<dir>`, `qasper:<file>`, `jsonl:<file>`): records candidates once, then scores vector search, Jev classification, Jev re-ranking and an optional LLM re-ranker (`--llm-rerank MODEL`) on the same candidates. `--dry-run`, `--limit N`, `--split`, `--report-only`, `--compare a,b` |
 
 `-c path/to/jev-retrieval.yaml` selects a config file; `--env-file path` or `--no-env-file` controls `.env` loading (both go before the command). Set `JEV_RETRIEVAL_DEBUG=1` for full tracebacks.
 
@@ -566,7 +568,7 @@ CI runs the offline suite on Python 3.10, 3.12 and 3.13, and the pgvector confor
 
 Planned, not in this release. Tracked in the [PRD](docs/PRD.md) milestones:
 
-- **Measured defaults:** `jev-retrieval eval` against baseline chunkers and re-rankers on public datasets, threshold calibration, and published results.
+- **Measured defaults, continued:** a cross-encoder re-ranking baseline, a gate question that fits claims as well as questions, and a decision on the classification default ([Results](docs/RESULTS.md#public-datasets-m2-scifact-fiqa-qasper)).
 - **More databases:** Pinecone verified against a live index, then Weaviate, Milvus, MongoDB Atlas, Elasticsearch, OpenSearch, Redis, LanceDB, Azure AI Search, turbopuffer, and a LlamaIndex bridge.
 - **More embedders:** native Cohere, Voyage, Gemini and Mistral clients with document/query input types.
 - **Hybrid search**, near-duplicate removal across documents, packed multi-passage classification.

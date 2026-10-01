@@ -1,0 +1,12 @@
+{
+  "written_at_utc": "2026-10-01T02:59Z",
+  "basis": "dev splits only: QASPER dev (87 q), SciFact dev (100 q). FiQA not yet recorded.",
+  "disclosure": "Before choosing, test-split results for the shipped THRESHOLD mode on QASPER and SciFact had already been printed (it failed the recall bar on both). Test results for the rank mode below had not been computed. So the choice of rank mode was made on dev numbers, but with knowledge that the threshold mode fails on test.",
+  "candidate": "classification select=rank: order candidates by Jev contains_answer_evidence (ties: vector score), drop only passages with instructs_ai >= 0.70, keep top 5; conflicts routed as before",
+  "dev_results": {
+    "qasper": {"recall@10": 0.9614, "vector@10_recall": 0.9654, "token_cut": 0.46},
+    "scifact": {"recall@10": 0.84, "vector@10_recall": 0.83, "token_cut": 0.51}
+  },
+  "test_rule": "Report this exact configuration on all three test splits, unchanged. PRD bar per set: token cut >= 40% and recall@10 drop <= 2 points vs vector@10.",
+  "also_reported_unchanged": "the shipped threshold mode at defaults, and the threshold mode tuned on each dev split"
+}

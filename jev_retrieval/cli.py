@@ -1,4 +1,4 @@
-"""``jev-retrieval`` command line: init, check, ingest, query, inspect, delete."""
+"""``jev-retrieval`` command line: init, check, ingest, query, inspect, delete, eval."""
 
 from __future__ import annotations
 
@@ -223,10 +223,74 @@ def cmd_delete(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_eval(args: argparse.Namespace) -> int:
+    """Record candidates for a labelled dataset, then report every system."""
+    import asyncio
+    import json as _json
+
+    from .eval import ideal_units, load_dataset
+    from .eval.llm_rerank import LLMReranker
+    from .eval.runner import RecordOptions, load_recording, record
+    from .eval.systems import bootstrap_delta, evaluate
+
+    kw = {}
+    if args.split:
+        kw["split"] = args.split
+    if args.max_queries is not None:
+        kw["max_queries"] = args.max_queries
+    if args.distractors is not None:
+        kw["distractors"] = args.distractors
+    if args.max_papers is not None:
+        kw["max_papers"] = args.max_papers
+    ds = load_dataset(args.dataset, **kw)
+    out_dir = Path(args.out)
+    collection = args.collection
+    print(f"dataset   {_json.dumps(ds.summary())}")
+    if not args.report_only:
+        rag, _cfg = _pipeline(args)
+        llm = LLMReranker(model=args.llm_rerank) if args.llm_rerank else None
+        opt = RecordOptions(candidates=args.candidates, concurrency=args.concurrency, llm=llm, jev=not args.no_jev)
+        if args.dry_run:
+            est = rag.ingest(ds.docs, collection, dry_run=True).estimate
+            n = len(ds.queries) if args.limit is None else min(args.limit, len(ds.queries))
+            per_q = args.candidates + 3
+            print(f"ingest    {_json.dumps(est)}")
+            print(f"queries   {n} x ({args.candidates} classify + 3 gate) = {n * per_q} Jev requests"
+                  + (f", {n} {args.llm_rerank} requests" if llm else ""))
+            return 0
+        try:
+            meta = asyncio.run(record(rag, ds, collection, out_dir, opt, ingest=not args.no_ingest,
+                                      limit=args.limit, progress=print))
+        finally:
+            rag.close()
+        for key in ("ingest", "jev_usage", "llm_usage"):
+            if meta.get(key):
+                print(f"{key:<10}{_json.dumps(meta[key])}")
+    rows = load_recording(out_dir, collection)
+    qideal = {q.id: ideal_units(q, ds.level) for q in ds.queries}
+    rows = [r for r in rows if r["id"] in qideal]
+    systems = [s.strip() for s in args.systems.split(",") if s.strip()]
+    rep = evaluate(rows, systems, qideal=qideal, k=args.k)
+    k = args.k
+    cols = [f"recall@{k}", f"ndcg@{k}", "mrr", "hit@1", "passages_mean", "context_tokens_mean", "false_abstain", "true_abstain"]
+    print(f"\n{len(rows)} recorded queries ({sum(r['answerable'] for r in rows)} answerable)")
+    print(f"{'system':<16}" + "".join(f"{c.replace('_mean', ''):>15}" for c in cols))
+    for name, m in rep.items():
+        print(f"{name:<16}" + "".join(f"{'' if m.get(c) is None else m.get(c):>15}" for c in cols))
+    if args.compare:
+        a, b = args.compare.split(",")
+        for metric in ("recall", "ndcg"):
+            d = bootstrap_delta(rows, a, b, qideal=qideal, metric=metric, k=k)
+            print(f"{a} - {b} {metric}@{k}: {d['delta']:+.4f} (95% CI {d['lo']:+.4f} to {d['hi']:+.4f}, n={d['n']})")
+    if args.json_out:
+        Path(args.json_out).write_text(_json.dumps({"dataset": ds.summary(), "systems": rep}, indent=1))
+    return 0
+
+
 # -- parser ---------------------------------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="jev-retrieval", description="Jev-steered chunking, ingestion and retrieval")
+    p = argparse.ArgumentParser(prog="jev-retrieval", description="Jev-steered ingestion and retrieval")
     p.add_argument("--version", action="version", version=f"jev-retrieval {__version__}")
     p.add_argument("-c", "--config", default=DEFAULT_FILE, help=f"config file (default {DEFAULT_FILE})")
     p.add_argument("--env-file", default=None, help="load environment variables from this file (default ./.env)")
@@ -281,6 +345,28 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--collection", required=True)
     s.add_argument("--doc", required=True, help="doc_id")
     s.set_defaults(fn=cmd_delete)
+
+    s = sub.add_parser("eval", help="measure retrieval systems on a labelled dataset")
+    s.add_argument("dataset", help="beir:<dir>, qasper:<file> or jsonl:<file>")
+    s.add_argument("--collection", required=True, help="collection to ingest the corpus into")
+    s.add_argument("--out", default=".jev-retrieval/eval", help="where recordings go (default .jev-retrieval/eval)")
+    s.add_argument("--split", help="BEIR qrels split or jsonl split field (default test for BEIR)")
+    s.add_argument("--max-queries", type=int, help="sample this many queries (BEIR)")
+    s.add_argument("--distractors", type=int, help="BEIR: keep relevant docs plus this many random others")
+    s.add_argument("--max-papers", type=int, help="QASPER: sample this many papers")
+    s.add_argument("--candidates", type=int, default=30, help="vector candidates per query (default 30)")
+    s.add_argument("--llm-rerank", metavar="MODEL", help="also record an LLM re-ranking baseline, e.g. openai/gpt-4.1-mini")
+    s.add_argument("--no-jev", action="store_true", help="record vector (and LLM) only")
+    s.add_argument("--no-ingest", action="store_true", help="the collection is already ingested")
+    s.add_argument("--limit", type=int, help="record only N more queries (try 1 before a batch)")
+    s.add_argument("--concurrency", type=int, default=4)
+    s.add_argument("--dry-run", action="store_true", help="estimate requests and cost; no calls")
+    s.add_argument("--report-only", action="store_true", help="score the existing recording; no API calls")
+    s.add_argument("--systems", default="vector@8,vector@10,jev,jev-rerank@8,llm-rerank@8")
+    s.add_argument("--compare", help="paired bootstrap of two systems, e.g. jev,vector@10")
+    s.add_argument("-k", type=int, default=10)
+    s.add_argument("--json-out", help="write the report as JSON")
+    s.set_defaults(fn=cmd_eval)
     return p
 
 

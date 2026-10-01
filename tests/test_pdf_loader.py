@@ -2,7 +2,7 @@ import pytest
 
 pymupdf = pytest.importorskip("pymupdf")
 
-from jevrag.parse import load_file  # noqa: E402
+from jev_retrieval.parse import load_file  # noqa: E402
 
 
 def _make_pdf(path):

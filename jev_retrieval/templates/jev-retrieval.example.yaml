@@ -1,9 +1,9 @@
-# jevrag configuration: every setting, with its default.
-#   cp jevrag.example.yaml jevrag.yaml     (or run `jevrag init` for a short version)
+# jev-retrieval configuration: every setting, with its default.
+#   cp jev-retrieval.example.yaml jev-retrieval.yaml     (or run `jev-retrieval init` for a short version)
 # Secrets never go here: keys come from the environment or .env (see .env.example).
 # Unknown keys are rejected, so a typo fails loudly instead of being ignored.
 # Thresholds are starting points, not measured defaults: tune them on your own data
-# with `jevrag query -v` and `jevrag inspect -v`.
+# with `jev-retrieval query -v` and `jev-retrieval inspect -v`.
 
 # ---------------------------------------------------------------------------
 # Jev (TypeSafe's System One model)
@@ -15,7 +15,7 @@ jev:
                                # vercel typesafe-ai/jev, openrouter typesafe/jev-1.13
   # base_url:                  # override the backend's endpoint
   # api_key_env:               # read the key from a different variable
-  cache_dir: .jevrag/cache     # answers cached by content hash; null disables the cache
+  cache_dir: .jev-retrieval/cache     # answers cached by content hash; null disables the cache
   max_rps: 30                  # requests per second (published limit: 40)
   max_tokens_per_s: 80000      # input tokens per second (published limit: 100,000)
   max_concurrency: 16          # requests in flight
@@ -29,17 +29,17 @@ jev:
 # ---------------------------------------------------------------------------
 store:
   kind: memory                 # in-process; optional JSON file. For tests and small demos
-  path: .jevrag/memory-store.json
+  path: .jev-retrieval/memory-store.json
 
 # store:                       # Qdrant  (pip install "...[qdrant]")
 #   kind: qdrant
-#   url: http://localhost:6333 # or `path: .jevrag/qdrant` for embedded mode, no server
+#   url: http://localhost:6333 # or `path: .jev-retrieval/qdrant` for embedded mode, no server
 #   api_key_env: QDRANT_API_KEY
 #   prefix: ""                 # prepended to collection names
 
 # store:                       # Chroma  (pip install "...[chroma]")
 #   kind: chroma
-#   path: .jevrag/chroma       # persistent local client
+#   path: .jev-retrieval/chroma       # persistent local client
 #   # host: localhost          # or a Chroma server
 #   # port: 8000
 
@@ -47,16 +47,16 @@ store:
 #   kind: pgvector
 #   dsn_env: DATABASE_URL      # or `dsn: postgresql://...` (keep passwords out of this file)
 #   schema: public
-#   table_prefix: jevrag_      # one table per collection: jevrag_<collection>
+#   table_prefix: jev_retrieval_      # one table per collection: jev_retrieval_<collection>
 
 # store:                       # Pinecone, EXPERIMENTAL: not yet tested live  (pip install "...[pinecone]")
 #   kind: pinecone
-#   index: jevrag              # a jevrag collection is a namespace in this index; created if missing
+#   index: jev-retrieval      # a jev-retrieval collection is a namespace in this index; created if missing
 #   api_key_env: PINECONE_API_KEY
 #   cloud: aws                 # for index creation (or PINECONE_CLOUD)
 #   region: us-east-1          # (or PINECONE_REGION)
 
-# Any LangChain vector store: build it in Python with jevrag.stores.langchain.LangChainStore.
+# Any LangChain vector store: build it in Python with jev_retrieval.stores.langchain.LangChainStore.
 
 # ---------------------------------------------------------------------------
 # Embeddings. A collection remembers its embedder; switching needs a new collection.
@@ -78,7 +78,7 @@ embedder:
 chunking:
   method: structural           # structural | jev | fixed | semantic-embedding
                                # structural matched jev on every benchmark at half the Jev cost;
-                               # see docs/RESULTS.md. Try `jev` on your data with `jevrag inspect --compare`.
+                               # see docs/RESULTS.md. Try `jev` on your data with `jev-retrieval inspect --compare`.
   mode: on                     # jev method only: on | shadow (log Jev's cuts, store structural) | off
   min_tokens: 64               # smaller chunks merge into a neighbour
   target_tokens: 350
@@ -135,7 +135,7 @@ retrieve:
     max_passage_chars: 3000
 
 # ---------------------------------------------------------------------------
-# Answer LLM: only for Pipeline.answer() and `jevrag query --answer`
+# Answer LLM: only for Pipeline.answer() and `jev-retrieval query --answer`
 # ---------------------------------------------------------------------------
 answer:
   provider: openai             # openai (OPENAI_API_KEY) | anthropic (ANTHROPIC_API_KEY) | gateway (AI_GATEWAY_API_KEY)

@@ -1,4 +1,4 @@
-"""``jevrag`` command line: init, check, ingest, query, inspect, delete."""
+"""``jev-retrieval`` command line: init, check, ingest, query, inspect, delete."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from .config import DEFAULT_FILE, STORE_TEMPLATES, Config, render_template
 def _pipeline(args: argparse.Namespace) -> Any:
     from .pipeline import Pipeline
     if not Path(args.config).exists():
-        raise FileNotFoundError(f"{args.config} not found: run `jevrag init` first, or pass -c path/to/jevrag.yaml")
+        raise FileNotFoundError(f"{args.config} not found: run `jev-retrieval init` first, or pass -c path/to/jev-retrieval.yaml")
     cfg = Config.load(args.config)
     if not cfg.embedder_spec:
         raise ValueError(f"{args.config} has no embedder.model")
@@ -32,7 +32,7 @@ def _emit(args: argparse.Namespace, obj: Any) -> None:
 
 def _template(name: str) -> str:
     from importlib.resources import files
-    return files("jevrag").joinpath("templates", name).read_text(encoding="utf-8")
+    return files("jev_retrieval").joinpath("templates", name).read_text(encoding="utf-8")
 
 
 def cmd_init(args: argparse.Namespace) -> int:
@@ -41,7 +41,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         print(f"{path} already exists (use --force to overwrite)", file=sys.stderr)
         return 1
     if args.full:
-        path.write_text(_template("jevrag.example.yaml"))
+        path.write_text(_template("jev-retrieval.example.yaml"))
         print(f"wrote {path} (every setting, with defaults; pick one store block)")
     else:
         path.write_text(render_template(args.store, args.embedder))
@@ -56,7 +56,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         except OSError:
             pass
         print(f"wrote {env} (blank; fill in a Jev key and your embedding key, keep it out of git)")
-    print("next: `jevrag check`")
+    print("next: `jev-retrieval check`")
     return 0
 
 
@@ -93,7 +93,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     asyncio.run(run())
     try:
         from .types import Record
-        name = "jevrag_check"
+        name = "jev_retrieval_check"
         rag.store.ensure_collection(name, 3, "cosine", {"doc_id": "keyword"})
         rag.store.upsert(name, [Record("00000000-0000-0000-0000-000000000001", [1.0, 0.0, 0.0], "check",
                                        {"doc_id": "check"})])
@@ -226,17 +226,17 @@ def cmd_delete(args: argparse.Namespace) -> int:
 # -- parser ---------------------------------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="jevrag", description="Jev-steered chunking, ingestion and retrieval")
-    p.add_argument("--version", action="version", version=f"jevrag {__version__}")
+    p = argparse.ArgumentParser(prog="jev-retrieval", description="Jev-steered chunking, ingestion and retrieval")
+    p.add_argument("--version", action="version", version=f"jev-retrieval {__version__}")
     p.add_argument("-c", "--config", default=DEFAULT_FILE, help=f"config file (default {DEFAULT_FILE})")
     p.add_argument("--env-file", default=None, help="load environment variables from this file (default ./.env)")
     p.add_argument("--no-env-file", action="store_true", help="don't load a .env file")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    s = sub.add_parser("init", help="write a starter jevrag.yaml")
+    s = sub.add_parser("init", help="write a starter jev-retrieval.yaml")
     s.add_argument("--store", default="memory", choices=sorted(STORE_TEMPLATES))
     s.add_argument("--embedder", default="openai:text-embedding-3-small")
-    s.add_argument("--full", action="store_true", help="write every setting with comments (same as jevrag.example.yaml)")
+    s.add_argument("--full", action="store_true", help="write every setting with comments (same as jev-retrieval.example.yaml)")
     s.add_argument("--force", action="store_true", help="overwrite an existing config (never overwrites .env)")
     s.set_defaults(fn=cmd_init)
 
@@ -260,7 +260,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--top-k", type=int)
     s.add_argument("--no-route", action="store_true")
     s.add_argument("--retrieve-only", action="store_true",
-                   help="query a collection jevrag didn't build (no manifest check, no routing)")
+                   help="query a collection jev-retrieval didn't build (no manifest check, no routing)")
     s.add_argument("--answer", action="store_true", help="have the configured LLM answer from the passages")
     s.add_argument("--chars", type=int, default=400)
     s.add_argument("--json", action="store_true")
@@ -309,7 +309,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     except KeyboardInterrupt:
         return 130
     except Exception as exc:  # user-facing: one line, no traceback unless asked
-        if os.environ.get("JEVRAG_DEBUG"):
+        if os.environ.get("JEV_RETRIEVAL_DEBUG"):
             raise
         print(f"error: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1

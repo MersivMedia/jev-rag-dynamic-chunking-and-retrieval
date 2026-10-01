@@ -40,9 +40,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import bench_wiki as bw  # noqa: E402
-from jevrag import Document  # noqa: E402
-from jevrag.envfile import load_env_file  # noqa: E402
-from jevrag.parse import load_file  # noqa: E402
+from jev_retrieval import Document  # noqa: E402
+from jev_retrieval.envfile import load_env_file  # noqa: E402
+from jev_retrieval.parse import load_file  # noqa: E402
 
 BOILERPLATE = [
     "We use cookies to improve your experience on our site. By continuing to browse you agree to our use of "
@@ -379,7 +379,7 @@ async def cmd_report(a: argparse.Namespace) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("stage", choices=["build", "reparse", "ingest", "query", "report"])
-    ap.add_argument("--dir", default=".jevrag/bench_messy")
+    ap.add_argument("--dir", default=".jev-retrieval/bench_messy")
     ap.add_argument("--store", default="pgvector", choices=["pgvector", "qdrant-local"])
     ap.add_argument("--configs", nargs="+", default=list(bw.CONFIGS), choices=list(bw.CONFIGS))
     ap.add_argument("--modes", nargs="+", default=["vector", "jev"], choices=["vector", "jev"])

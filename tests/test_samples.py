@@ -7,30 +7,30 @@ from pathlib import Path
 import pytest
 import yaml
 
-from jevrag.cli import main
-from jevrag.config import Config
-from jevrag.envfile import load_env_file, parse_env_file
+from jev_retrieval.cli import main
+from jev_retrieval.config import Config
+from jev_retrieval.envfile import load_env_file, parse_env_file
 
 ROOT = Path(__file__).resolve().parent.parent
-PKG_TEMPLATES = ROOT / "jevrag" / "templates"
+PKG_TEMPLATES = ROOT / "jev_retrieval" / "templates"
 
 
 @pytest.mark.parametrize("root_name,pkg_name", [(".env.example", "env.example"),
-                                                ("jevrag.example.yaml", "jevrag.example.yaml")])
+                                                ("jev-retrieval.example.yaml", "jev-retrieval.example.yaml")])
 def test_repo_root_samples_match_packaged_templates(root_name, pkg_name):
-    # the repo-root copies are what people browse; the packaged ones are what `jevrag init` writes
+    # the repo-root copies are what people browse; the packaged ones are what `jev-retrieval init` writes
     assert (ROOT / root_name).read_text() == (PKG_TEMPLATES / pkg_name).read_text()
 
 
 def test_example_yaml_loads_with_every_setting():
-    cfg = Config(yaml.safe_load((ROOT / "jevrag.example.yaml").read_text()))
+    cfg = Config(yaml.safe_load((ROOT / "jev-retrieval.example.yaml").read_text()))
     assert cfg.store["kind"] == "memory" and cfg.embedder_spec
     assert cfg.chunking.boundary.style == "inline"
     assert cfg.retrieve.gate.mode == "on"  # YAML `on` normalised
 
 
 def test_every_commented_store_block_is_valid():
-    text = (ROOT / "jevrag.example.yaml").read_text()
+    text = (ROOT / "jev-retrieval.example.yaml").read_text()
     blocks = re.findall(r"^# store:.*\n((?:#   .*\n)+)", text, re.M)
     assert len(blocks) >= 4
     for b in blocks:
@@ -42,7 +42,7 @@ def test_every_commented_store_block_is_valid():
 
 def test_env_example_lists_every_variable_the_code_reads():
     used = set()
-    for f in (ROOT / "jevrag").rglob("*.py"):
+    for f in (ROOT / "jev_retrieval").rglob("*.py"):
         used |= set(re.findall(r'os\.environ\.get\(\s*"([A-Z][A-Z0-9_]+)"', f.read_text()))
         used |= set(re.findall(r'"([A-Z][A-Z0-9_]*_(?:API_KEY|TOKEN|URL|HOST))"', f.read_text()))
     documented = set(parse_env_file(ROOT / ".env.example"))
@@ -103,7 +103,7 @@ def test_cli_loads_dotenv_and_init_writes_both(tmp_path, monkeypatch, capsys):
     assert main(["init", "--force", "--full"]) == 0
     assert env.read_text() == "JR_T_KEY=mine\n"
     assert "kept existing" in capsys.readouterr().out
-    assert Config.load("jevrag.yaml").chunking.boundary.window_units == 24  # --full wrote the whole sample
+    assert Config.load("jev-retrieval.yaml").chunking.boundary.window_units == 24  # --full wrote the whole sample
 
     monkeypatch.delenv("JR_T_KEY", raising=False)
     main(["inspect", "--collection", "none"])  # any command loads .env first

@@ -3,8 +3,8 @@ import asyncio
 import httpx
 import pytest
 
-from jevrag.jev import Choice, JevClient, JevConfig, JevError, Noul, Score, SpecError, question_from_dict
-from jevrag.jev.questions import parse_answer
+from jev_retrieval.jev import Choice, JevClient, JevConfig, JevError, Noul, Score, SpecError, question_from_dict
+from jev_retrieval.jev.questions import parse_answer
 
 
 def run(c):

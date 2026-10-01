@@ -2,14 +2,14 @@ import json
 
 import pytest
 
-from jevrag import Document, Pipeline
-from jevrag.chunk import ChunkConfig
-from jevrag.cli import main
-from jevrag.config import Config, render_template
-from jevrag.enrich import EnrichConfig, Taxonomy
-from jevrag.pipeline import ManifestMismatch
-from jevrag.retrieve import ClassifyConfig, RetrieveConfig, route_passage
-from jevrag.stores import MemoryStore
+from jev_retrieval import Document, Pipeline
+from jev_retrieval.chunk import ChunkConfig
+from jev_retrieval.cli import main
+from jev_retrieval.config import Config, render_template
+from jev_retrieval.enrich import EnrichConfig, Taxonomy
+from jev_retrieval.pipeline import ManifestMismatch
+from jev_retrieval.retrieve import ClassifyConfig, RetrieveConfig, route_passage
+from jev_retrieval.stores import MemoryStore
 
 TAX = {"version": 1, "fields": {"product": {"route": True, "options": {
     "billing": "Payments, invoices, refunds", "auth": "Tokens, sessions, SSO",

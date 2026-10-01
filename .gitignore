@@ -1,7 +1,7 @@
 __pycache__/
 *.pyc
 .venv/
-.jevrag/
+.jev-retrieval/
 *.egg-info/
 dist/
 build/
@@ -9,5 +9,5 @@ build/
 .env
 .env.*
 !.env.example
-jevrag.yaml
+jev-retrieval.yaml
 .ruff_cache/

@@ -121,7 +121,7 @@ class Pipeline:
                  embedder: Union[str, Embedder, Any] = None, jev: Optional[JevConfig] = None,
                  chunking: Optional[ChunkConfig] = None, enrich: Optional[EnrichConfig] = None,
                  retrieve: Optional[RetrieveConfig] = None, answer: Optional[AnswerConfig] = None,
-                 token_counter: Optional[TokenCounter] = None, trace_dir: Optional[str] = ".jevrag/traces",
+                 token_counter: Optional[TokenCounter] = None, trace_dir: Optional[str] = ".jev-retrieval/traces",
                  embedder_options: Optional[Mapping[str, Any]] = None, jev_transport: Any = None) -> None:
         if embedder is None:
             raise ValueError("Pipeline needs an embedder, e.g. embedder='openai:text-embedding-3-small' "
@@ -167,7 +167,7 @@ class Pipeline:
         m = self.store.get_manifest(collection)
         if m is None:
             if not create:
-                raise ManifestMismatch(f"collection {collection!r} has no jevrag manifest: ingest into it first, "
+                raise ManifestMismatch(f"collection {collection!r} has no jev-retrieval manifest: ingest into it first, "
                                        "or query it in retrieve-only mode")
             assert dim is not None
             self.store.ensure_collection(collection, dim, self.embedder.metric, self._filter_fields())

@@ -5,7 +5,7 @@ Current limits of the v1.0 development build. Each has a workaround or a milesto
 ## Quality
 
 - **Only two in-house benchmarks so far.** Jev classification, the gate and paragraph screening clearly helped on both ([Results](RESULTS.md)), but the public sets in M2 haven't been run, the questions were machine-written, and each was a single run. Default thresholds are starting points chosen on small probes. Workaround: run stages in `shadow` mode and compare on your data.
-- **Jev chunking hasn't earned its place.** It tied or lost to `structural` on both benchmarks, at about twice the ingest cost, so `structural` is the default. `method: jev` is kept for long text without structure; test it with `jevrag inspect <file> --compare jev` before using it.
+- **Jev chunking hasn't earned its place.** It tied or lost to `structural` on both benchmarks, at about twice the ingest cost, so `structural` is the default. `method: jev` is kept for long text without structure; test it with `jev-retrieval inspect <file> --compare jev` before using it.
 - **Thresholds are per model version.** A new Jev version can shift probabilities. The default model IDs differ by backend (`jev-1.13.0` on TypeSafe, `typesafe-ai/jev` on Vercel, `typesafe/jev-1.13` on OpenRouter); pin `jev.model` if you need stability.
 - **English first.** TypeSafe documents lower accuracy outside English.
 
@@ -21,18 +21,18 @@ Current limits of the v1.0 development build. Each has a workaround or a milesto
 ## Stores
 
 - **Pinecone is experimental and untested against a live index** (deferred to M4). The adapter follows the `pinecone` 10.x SDK signatures and has not been run through the conformance suite. Filtered listing and deletes use a filtered query and are capped at 10,000 ids per call.
-- **Chroma** can't express existence tests natively, and its `$ne` / `$nin` also match records without the field. jevrag queries a superset and filters in Python, over-fetching for queries. Very selective negative filters can return fewer than `top_k`.
-- **LangChain bridge** filters in Python after over-fetching (`overfetch`, default 4 times `top_k`), and relies on the wrapped store honouring caller-supplied ids for replace and stale-delete. Use `JevragEmbeddings` so stored vectors come from jevrag's `embed_text`.
+- **Chroma** can't express existence tests natively, and its `$ne` / `$nin` also match records without the field. jev-retrieval queries a superset and filters in Python, over-fetching for queries. Very selective negative filters can return fewer than `top_k`.
+- **LangChain bridge** filters in Python after over-fetching (`overfetch`, default 4 times `top_k`), and relies on the wrapped store honouring caller-supplied ids for replace and stale-delete. Use `JevRetrievalEmbeddings` so stored vectors come from jev_retrieval's `embed_text`.
 - **Qdrant embedded mode** ignores payload indexes (a Qdrant limitation); use a Qdrant server for large collections.
-- **`--retrieve-only`** expects jevrag's field layout (text in the store's `text` field). A configurable text field is planned.
+- **`--retrieve-only`** expects jev-retrieval's field layout (text in the store's `text` field). A configurable text field is planned.
 
 ## Security
 
-- **Injection screening is one layer.** It caught all 6 planted instructions in the messy benchmark (and kept them out of every query's context), but it hasn't been measured on a real attack set. Keep treating retrieved text as data in your LLM's system prompt (jevrag's `answer()` does).
+- **Injection screening is one layer.** It caught all 6 planted instructions in the messy benchmark (and kept them out of every query's context), but it hasn't been measured on a real attack set. Keep treating retrieved text as data in your LLM's system prompt (jev-retrieval's `answer()` does).
 
 ## Measured weaknesses (messy-document benchmark)
 
 - **Paragraph screening drops reference lists.** Bibliographies and citation lists score as boilerplate and are cut (about 1,000 paragraphs in the messy benchmark, almost all references). Good for most RAG, wrong if users ask about citations: use `enrich.screen_paragraphs: shadow` to review first, or `off`.
-- **Occasional false-positive quarantine.** One harmless Wikipedia maintenance tag ("Use dmy dates from January 2026") scored 0.74 for `instructs_ai` and was quarantined. Quarantined paragraphs are stored, not deleted, so they can be audited with `jevrag inspect`.
+- **Occasional false-positive quarantine.** One harmless Wikipedia maintenance tag ("Use dmy dates from January 2026") scored 0.74 for `instructs_ai` and was quarantined. Quarantined paragraphs are stored, not deleted, so they can be audited with `jev-retrieval inspect`.
 - **Injection screening misses what it isn't shown.** Every planted injection so far was its own paragraph. An instruction woven into a sentence of real content shares that paragraph's fate: the paragraph is quarantined whole. This hasn't been measured.
 - **Fixed in 1.0.0.dev0 (paragraph screening):** chunk-level quarantine hid 4 answers that shared a chunk with an injection, and short boilerplate under `min_tokens` was merged into content chunks (0 of 12 dropped). Both are measured fixed in [Results](RESULTS.md#paragraph-level-screening-rerun-of-the-messy-benchmark).

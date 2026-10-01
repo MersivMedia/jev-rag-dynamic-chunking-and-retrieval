@@ -1,13 +1,13 @@
 | FR-C2 | **Boundary questions.** Within each section, for each adjacent sentence pair, ask two Nouls in one packed request per window. The state is the window's text; each question carries its own pair inline as `{previous, sentence, question}`. `continues`: "In the document, does `sentence` continue the specific point that `previous` is making?" `refers_back`: "Does `sentence` depend on `previous` to be understood, for example by referring back to it with words like this, it, these or such?" Questions must not point at sentences by list position: in a labelled probe, `sentences[i]`-style references gave a mean absolute error of 0.63 against 0.07 for inline pairs and 0.10 for named keys (RESULTS.md). Windows are sized to the state budget and overlap by 4 units; each gap is asked in the window where it sits furthest from an edge. Wording is tuned further in M2 [7] |
 # jev-rag-retrieval: Product Requirements Document
 
-Name: **jev-rag-retrieval**: repository `MersivMedia/jev-rag-retrieval` and PyPI package `jev-rag-retrieval`. Short forms: Python import `jevrag`, CLI command `jevrag`. "jevrag" below means the tool.
+Name: **jev-rag-retrieval**: repository `MersivMedia/jev-rag-retrieval` and PyPI package `jev-rag-retrieval`. Short forms: Python import `jev_retrieval`, CLI command `jev-retrieval`. "jev-retrieval" below means the tool.
 
 Source material: "Jev chunking and ingestion for RAG" sample design and code [1].
 
 ## 1. Summary
 
-jevrag is an open-source Python library and CLI that puts Jev, TypeSafe AI's System One decision model, into the three places a RAG pipeline makes judgment calls it usually makes badly:
+jev-retrieval is an open-source Python library and CLI that puts Jev, TypeSafe AI's System One decision model, into the three places a RAG pipeline makes judgment calls it usually makes badly:
 
 - **Where to cut documents into chunks.** Jev judges whether each sentence continues the point of the one before it. Code then places cuts where continuity is lowest, inside hard size limits. Measured in M2 against cheaper chunkers, it did not win, so it ships as an option (`method: jev`) and `structural` is the default (Section 11).
 - **What goes into the vector database.** Jev screens each chunk for filler, boilerplate and planted instructions, and tags it against a taxonomy you define. Every tag carries a probability.
@@ -74,7 +74,7 @@ The sample [1] has the right shape: code in control, Jev for narrow judgments, a
 
 ### 3.2 Non-goals
 
-- **Not a vector database or an LLM framework.** jevrag writes to and reads from existing stores and returns passages; generation is an optional thin helper.
+- **Not a vector database or an LLM framework.** jev-retrieval writes to and reads from existing stores and returns passages; generation is an optional thin helper.
 - **No text generation by Jev.** Summaries, contextual headers and query rewrites, where offered, come from code or an LLM, never from Jev [4].
 - **No images, audio or scanned pages.** Jev is text-only [3]. OCR and transcription happen upstream.
 - **No fine-tuning.** Jev can't be fine-tuned; all customisation is in state and question wording [3].
@@ -111,7 +111,7 @@ Operating envelope for `jev-1.13.0` as of this writing [3]:
 
 Known weak spots, from TypeSafe's jaggedness page [4], each with the rule this design follows:
 
-| Weak spot | Rule in jevrag |
+| Weak spot | Rule in jev-retrieval |
 |---|---|
 | Counting and arithmetic | All counting, lengths and maths in code |
 | Accuracy falls as state fills with unrelated detail | Send only the text a question needs; one passage per request by default |
@@ -147,7 +147,7 @@ Every Jev stage has a code-only fallback and a mode: `off`, `shadow` (compute an
 
 ```
 jev-rag-retrieval/
-  jevrag/         Python package
+  jev_retrieval/         Python package
     jev/          client, backends, batching, cache, rate limiter
     parse/        loaders (txt, md, html, pdf, docx), block + sentence segmentation
     chunk/        boundary questions, DP segmenter, fallback chunkers
@@ -214,10 +214,10 @@ jev-rag-retrieval/
 |---|---|
 | FR-I1 | Embedding providers: OpenAI, Cohere, Voyage, Google Gemini, Mistral, Ollama, sentence-transformers (local), plus a callable for anything else. Batched with provider limits, retried, with separate document and query input types where the provider has them |
 | FR-I2 | Deterministic record IDs: UUIDv5 of (`doc_id`, chunk content hash). Re-ingesting a document upserts its current chunks and deletes that `doc_id`'s records whose IDs are no longer present. UUIDs are valid IDs in every supported store, including Qdrant's unsigned-integer-or-UUID rule |
-| FR-I3 | A collection manifest (embedding provider, model, dimension, metric, chunker, taxonomy version, jevrag version) stored with the collection. Queries with a different embedder are refused with a clear error |
+| FR-I3 | A collection manifest (embedding provider, model, dimension, metric, chunker, taxonomy version, jev-retrieval version) stored with the collection. Queries with a different embedder are refused with a clear error |
 | FR-I4 | Vector dimension checked against the manifest before any write |
 | FR-I5 | Incremental ingest: skip documents whose content hash is unchanged |
-| FR-I6 | `jevrag delete --doc`, `jevrag reenrich` (re-run enrichment without re-chunking or re-embedding) and `jevrag reembed` (new embedder into a new collection) |
+| FR-I6 | `jev-retrieval delete --doc`, `jev-retrieval reenrich` (re-run enrichment without re-chunking or re-embedding) and `jev-retrieval reembed` (new embedder into a new collection) |
 
 Record schema (logical; each adapter maps it to native fields):
 
@@ -269,7 +269,7 @@ The LangChain bridge in the first release means any database with a LangChain in
 | FR-R7 | **Result object**: `passages`, `conflicts`, `dropped` (each with reason and probabilities), `abstain`, `gate_p`, `filter_used`, `degraded`, per-stage latency, Jev tokens, and a `to_prompt()` that renders evidence and conflicts as separate, cited blocks |
 | FR-R8 | Optional `answer()` helper for OpenAI-compatible and Anthropic APIs. No dependency on LiteLLM |
 | FR-R9 | **Packed mode** (optional): several passages per request, each question pointing at `passages[i]`, to fit the 40 requests-per-second limit. Off by default until M4 measures its accuracy cost [4] |
-| FR-R10 | **Retrieve-only mode** against an existing collection that jevrag didn't write: routing is skipped (no tags); classification and gating still work if a text field is named |
+| FR-R10 | **Retrieve-only mode** against an existing collection that jev-retrieval didn't write: routing is skipped (no tags); classification and gating still work if a text field is named |
 
 ### 7.8 Interfaces (FR-X)
 
@@ -277,7 +277,7 @@ The LangChain bridge in the first release means any database with a LangChain in
 |---|---|
 | FR-X1 | Python API, sync and async: `Pipeline.from_config(...)`, `.ingest(paths_or_docs)`, `.retrieve(query)`, `.answer(query)` |
 | FR-X2 | CLI: `init`, `ingest`, `query`, `delete`, `reenrich`, `reembed`, `inspect` (show a document's chunks and cut scores), `eval`, `calibrate`, `cost`, `serve`, `mcp` |
-| FR-X3 | One `jevrag.yaml` for all settings; secrets only from the environment, which the CLI can load from a `.env` file. The repo ships `jevrag.example.yaml` (every setting, commented) and `.env.example` (every variable, blank); tests fail if either drifts from the code |
+| FR-X3 | One `jev-retrieval.yaml` for all settings; secrets only from the environment, which the CLI can load from a `.env` file. The repo ships `jev-retrieval.example.yaml` (every setting, commented) and `.env.example` (every variable, blank); tests fail if either drifts from the code |
 | FR-X4 | Optional HTTP server (FastAPI extra): `/ingest`, `/retrieve`, `/answer`, `/health` |
 | FR-X5 | Optional MCP server exposing `search_knowledge` and `ingest_documents`, so Hermes and other agents can use a collection as a tool |
 | FR-X6 | LangChain `BaseRetriever` and LlamaIndex retriever wrappers |
@@ -286,10 +286,10 @@ The LangChain bridge in the first release means any database with a LangChain in
 
 | ID | Requirement |
 |---|---|
-| FR-V1 | `jevrag eval` on a labelled set (query, relevant `doc_id` or evidence span, or "unanswerable"). Metrics: evidence recall@5 and @10, nDCG@10, MRR, context tokens sent to the LLM, abstention precision and recall, latency p50/p90, Jev and embedding cost per 1,000 queries |
-| FR-V2 | `jevrag calibrate` chooses each threshold from labelled data for a target (for example, drop at most 2% of truly relevant passages) and writes them to config with the model ID they were tuned on |
+| FR-V1 | `jev-retrieval eval` on a labelled set (query, relevant `doc_id` or evidence span, or "unanswerable"). Metrics: evidence recall@5 and @10, nDCG@10, MRR, context tokens sent to the LLM, abstention precision and recall, latency p50/p90, Jev and embedding cost per 1,000 queries |
+| FR-V2 | `jev-retrieval calibrate` chooses each threshold from labelled data for a target (for example, drop at most 2% of truly relevant passages) and writes them to config with the model ID they were tuned on |
 | FR-V3 | Built-in baselines on the same corpus and embedder: `fixed` 512/64, `structural`, `semantic-embedding`; no re-rank, cross-encoder (`bge-reranker-v2-m3`, local), Cohere Rerank |
-| FR-V4 | `jevrag label`: a small terminal tool to label retrieved passages, with Jev's answers hidden to avoid anchoring |
+| FR-V4 | `jev-retrieval label`: a small terminal tool to label retrieved passages, with Jev's answers hidden to avoid anchoring |
 | FR-V5 | Shadow mode for every Jev stage, so a live deployment logs what Jev would change before anyone switches it on |
 
 ## 8. Cost and speed
@@ -341,8 +341,8 @@ Each milestone is a goal with a test that says it's done. Work moves to the next
 
 | Milestone | Goal | Content | Done when |
 |---|---|---|---|
-| **M1 Working core** | One document goes in and a grounded, cited answer comes out, end to end | Jev client (TypeSafe, OpenRouter, Vercel), parser, Jev chunker with `structural` fallback, enrichment, embedders (OpenAI, sentence-transformers, Ollama), first-release adapters (Section 7.6), the full retrieval path, CLI `init`/`ingest`/`query`/`inspect`, config, cache, traces | Conformance suite green on every first-release store; unit tests pass on recorded Jev fixtures; `jevrag ingest` then `jevrag query` works against each store |
-| **M2 Measured** | Defaults set by measurement, not by guess | `jevrag eval` with the built-in baselines, run on small samples of BEIR SciFact and FiQA (retrieval and re-ranking) and QASPER (long-document chunking) [UNVERIFIED: dataset licences to confirm], plus the injection test set; question wordings and thresholds tuned; RESULTS.md written | Go/no-go per stage. Jev chunking is the default only if it beats the best baseline on evidence recall@10 on at least 2 of 3 sets. Classification is on by default only if it cuts context tokens sent to the LLM by at least 40% without lowering recall@10 by more than 2 points. A stage that misses its bar ships in `shadow` mode, with the result in RESULTS.md |
+| **M1 Working core** | One document goes in and a grounded, cited answer comes out, end to end | Jev client (TypeSafe, OpenRouter, Vercel), parser, Jev chunker with `structural` fallback, enrichment, embedders (OpenAI, sentence-transformers, Ollama), first-release adapters (Section 7.6), the full retrieval path, CLI `init`/`ingest`/`query`/`inspect`, config, cache, traces | Conformance suite green on every first-release store; unit tests pass on recorded Jev fixtures; `jev-retrieval ingest` then `jev-retrieval query` works against each store |
+| **M2 Measured** | Defaults set by measurement, not by guess | `jev-retrieval eval` with the built-in baselines, run on small samples of BEIR SciFact and FiQA (retrieval and re-ranking) and QASPER (long-document chunking) [UNVERIFIED: dataset licences to confirm], plus the injection test set; question wordings and thresholds tuned; RESULTS.md written | Go/no-go per stage. Jev chunking is the default only if it beats the best baseline on evidence recall@10 on at least 2 of 3 sets. Classification is on by default only if it cuts context tokens sent to the LLM by at least 40% without lowering recall@10 by more than 2 points. A stage that misses its bar ships in `shadow` mode, with the result in RESULTS.md |
 | **M3 Released** | People can install and use it | Public repo, README and KNOWN_ISSUES.md matching the shipped behaviour, PyPI package, tagged v1.0.0, CI running unit and conformance tests | `pip install` and the README quickstart work from a clean machine in under 10 minutes; every claim in the README links to RESULTS.md |
 | **M4 Coverage** | Works with every popular vector database and agent framework | Pinecone conformance against a live index, remaining native adapters, hybrid search, remaining embedders (native Cohere, Voyage, Gemini, Mistral), LlamaIndex bridge, HTTP and MCP servers, LangChain and LlamaIndex retrievers, `reenrich`, `reembed`, `calibrate`, `label`, packed mode measured. Order set by what M3 users ask for | Conformance green on all 13 native stores; packed-mode accuracy cost documented; Hermes can query a collection through MCP |
 
@@ -360,7 +360,7 @@ Targets are hypotheses until M2.
 
 ## 13. Open questions
 
-Decided in M1: jevrag has its own async `httpx` client (adapted from Jermes) rather than depending on the pre-1.0 `typesafe-sdk` [10], because the Vercel and OpenRouter backends are needed.
+Decided in M1: jev-retrieval has its own async `httpx` client (adapted from Jermes) rather than depending on the pre-1.0 `typesafe-sdk` [10], because the Vercel and OpenRouter backends are needed.
 
 
 1. **Default embedder** for the quickstart: local sentence-transformers (no key, slower) or OpenAI (one more key).

@@ -1,4 +1,4 @@
-"""File loaders. Each returns a :class:`~jevrag.types.Document` in Markdown form.
+"""File loaders. Each returns a :class:`~jev_retrieval.types.Document` in Markdown form.
 
 * ``.md`` / ``.markdown`` / ``.txt`` / ``.rst``: read as is
 * ``.html`` / ``.htm``: converted with the stdlib HTML parser (scripts, styles,

@@ -1,6 +1,6 @@
 """Bridge to any LangChain ``VectorStore`` (``pip install ...[langchain]``).
 
-Covers databases without a native jevrag adapter. Fewer guarantees than a
+Covers databases without a native jev-retrieval adapter. Fewer guarantees than a
 native adapter (Capabilities.native_filters = False):
 
 * filters are applied **in Python** after over-fetching ``top_k * overfetch``
@@ -8,10 +8,10 @@ native adapter (Capabilities.native_filters = False):
 * ids are passed through; stores that ignore caller ids break stale-delete
 * scores come from ``similarity_search_with_relevance_scores`` (already 0..1 by
   LangChain's convention for most stores)
-* the manifest lives in a sidecar file under ``.jevrag/manifests``
+* the manifest lives in a sidecar file under ``.jev-retrieval/manifests``
 
-Pass a vector store whose embedding function returns the same vectors jevrag
-computes, or wrap jevrag's embedder with :class:`JevragEmbeddings`.
+Pass a vector store whose embedding function returns the same vectors jev-retrieval
+computes, or wrap jev-retrieval's embedder with :class:`JevRetrievalEmbeddings`.
 """
 
 from __future__ import annotations
@@ -23,12 +23,12 @@ from .base import Capabilities, VectorStore
 from .filters import Where, matches, parse
 
 
-class JevragEmbeddings:
-    """LangChain ``Embeddings`` backed by a jevrag embedder.
+class JevRetrievalEmbeddings:
+    """LangChain ``Embeddings`` backed by a jev-retrieval embedder.
 
-    Wrap your store's embedding with this. When jevrag writes records it hands the
+    Wrap your store's embedding with this. When jev-retrieval writes records it hands the
     vectors it already computed (from ``embed_text``: title + heading path + chunk)
-    to this object, so stores that re-embed inside ``add_documents`` store jevrag's
+    to this object, so stores that re-embed inside ``add_documents`` store jev-retrieval's
     vectors instead of re-embedding the bare chunk text.
     """
 
@@ -65,7 +65,7 @@ class LangChainStore(VectorStore):
 
     def _docs(self, records: Sequence[Record]) -> List[Any]:
         from langchain_core.documents import Document  # type: ignore
-        return [Document(page_content=r.text, metadata={**r.metadata, "jevrag_id": r.id}, id=r.id) for r in records]
+        return [Document(page_content=r.text, metadata={**r.metadata, "jev_retrieval_id": r.id}, id=r.id) for r in records]
 
     def upsert(self, collection: str, records: Sequence[Record]) -> None:
         if not records:
@@ -79,8 +79,8 @@ class LangChainStore(VectorStore):
         emb = getattr(self.store, "embeddings", None) or getattr(self.store, "embedding", None)
         if hasattr(self.store, "add_embeddings") and all(v is not None for v in vecs):
             self.store.add_embeddings(list(zip([r.text for r in records], vecs)),
-                                      metadatas=[{**r.metadata, "jevrag_id": r.id} for r in records], ids=ids)
-        elif isinstance(emb, JevragEmbeddings) and all(v is not None for v in vecs):
+                                      metadatas=[{**r.metadata, "jev_retrieval_id": r.id} for r in records], ids=ids)
+        elif isinstance(emb, JevRetrievalEmbeddings) and all(v is not None for v in vecs):
             emb._precomputed = {r.text: list(r.vector or []) for r in records}
             try:
                 self.store.add_documents(self._docs(records), ids=ids)
@@ -106,7 +106,7 @@ class LangChainStore(VectorStore):
         out = []
         for d in self.store.get_by_ids(list(ids)):
             meta = dict(d.metadata or {})
-            rid = meta.pop("jevrag_id", None) or d.id
+            rid = meta.pop("jev_retrieval_id", None) or d.id
             out.append(Record(str(rid), None, d.page_content, meta))
         return out
 
@@ -128,7 +128,7 @@ class LangChainStore(VectorStore):
         hits = []
         for d, s in pairs:
             meta = dict(d.metadata or {})
-            rid = str(meta.pop("jevrag_id", None) or d.id)
+            rid = str(meta.pop("jev_retrieval_id", None) or d.id)
             if not matches(node, meta):
                 continue
             s = float(s)

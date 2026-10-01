@@ -2,13 +2,13 @@ import asyncio
 
 import pytest
 
-from jevrag.chunk import ChunkConfig, chunk_document
-from jevrag.chunk.boundaries import BoundaryConfig, candidate_gaps, plan_requests
-from jevrag.chunk.segmenter import Gap, SegmenterConfig, segment
-from jevrag.jev import JevClient, JevConfig
-from jevrag.parse import build_units, html_to_markdown, parse_blocks, split_sentences
-from jevrag.tokens import estimate_tokens
-from jevrag.types import Document
+from jev_retrieval.chunk import ChunkConfig, chunk_document
+from jev_retrieval.chunk.boundaries import BoundaryConfig, candidate_gaps, plan_requests
+from jev_retrieval.chunk.segmenter import Gap, SegmenterConfig, segment
+from jev_retrieval.jev import JevClient, JevConfig
+from jev_retrieval.parse import build_units, html_to_markdown, parse_blocks, split_sentences
+from jev_retrieval.tokens import estimate_tokens
+from jev_retrieval.types import Document
 
 DOC = """# Guide
 

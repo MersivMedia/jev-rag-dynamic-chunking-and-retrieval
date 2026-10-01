@@ -1,6 +1,6 @@
 """Live smoke test against the real Jev API and a real embedder. Opt-in:
 
-    JEVRAG_LIVE=1 AI_GATEWAY_API_KEY=... pytest tests/test_live.py -m live
+    JEV_RETRIEVAL_LIVE=1 AI_GATEWAY_API_KEY=... pytest tests/test_live.py -m live
 
 Uses whichever Jev key is set (TYPESAFE_API_KEY, AI_GATEWAY_API_KEY, OPENROUTER_API_KEY).
 Embeddings: OpenAI if OPENAI_API_KEY is set, else Vercel AI Gateway. Costs well under $0.01.
@@ -14,14 +14,14 @@ import pytest
 
 pytestmark = pytest.mark.live
 
-LIVE = os.environ.get("JEVRAG_LIVE") == "1"
+LIVE = os.environ.get("JEV_RETRIEVAL_LIVE") == "1"
 KEYS = {k: os.environ.get(k) for k in ("TYPESAFE_API_KEY", "AI_GATEWAY_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY")}
 
 
 @pytest.fixture
 def live_env(monkeypatch):
     if not LIVE:
-        pytest.skip("set JEVRAG_LIVE=1 to run live tests")
+        pytest.skip("set JEV_RETRIEVAL_LIVE=1 to run live tests")
     for k, v in KEYS.items():  # conftest clears keys for hermetic tests; put them back
         if v:
             monkeypatch.setenv(k, v)
@@ -35,12 +35,12 @@ def live_env(monkeypatch):
 
 
 def test_live_end_to_end(live_env, tmp_path):
-    from jevrag import Document, Pipeline
-    from jevrag.chunk import ChunkConfig
-    from jevrag.enrich import EnrichConfig, Taxonomy
-    from jevrag.jev import JevConfig
-    from jevrag.retrieve import RetrieveConfig, RouteConfig
-    from jevrag.stores import MemoryStore
+    from jev_retrieval import Document, Pipeline
+    from jev_retrieval.chunk import ChunkConfig
+    from jev_retrieval.enrich import EnrichConfig, Taxonomy
+    from jev_retrieval.jev import JevConfig
+    from jev_retrieval.retrieve import RetrieveConfig, RouteConfig
+    from jev_retrieval.stores import MemoryStore
 
     tax = Taxonomy.from_dict({"fields": {"product": {"route": True, "options": {
         "billing": "Payments, invoices, refunds, plans", "auth": "Sign-in, sessions, tokens, SSO",

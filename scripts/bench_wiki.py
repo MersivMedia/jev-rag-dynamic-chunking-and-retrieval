@@ -1,6 +1,6 @@
 """Larger-scale benchmark: long Wikipedia articles, many generated questions.
 
-Stages (each resumable; outputs go to .jevrag/bench/ by default):
+Stages (each resumable; outputs go to .jev-retrieval/bench/ by default):
 
     python scripts/bench_wiki.py build    # fetch articles, generate questions with verbatim evidence
     python scripts/bench_wiki.py ingest   # ingest into one collection per chunker config
@@ -44,19 +44,19 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from jevrag import Document, Pipeline  # noqa: E402
-from jevrag.chunk import ChunkConfig  # noqa: E402
-from jevrag.enrich import EnrichConfig  # noqa: E402
-from jevrag.envfile import load_env_file  # noqa: E402
-from jevrag.jev import JevConfig  # noqa: E402
-from jevrag.retrieve import ClassifyConfig, GateConfig, RetrieveConfig, RouteConfig  # noqa: E402
-from jevrag.tokens import estimate_tokens  # noqa: E402
+from jev_retrieval import Document, Pipeline  # noqa: E402
+from jev_retrieval.chunk import ChunkConfig  # noqa: E402
+from jev_retrieval.enrich import EnrichConfig  # noqa: E402
+from jev_retrieval.envfile import load_env_file  # noqa: E402
+from jev_retrieval.jev import JevConfig  # noqa: E402
+from jev_retrieval.retrieve import ClassifyConfig, GateConfig, RetrieveConfig, RouteConfig  # noqa: E402
+from jev_retrieval.tokens import estimate_tokens  # noqa: E402
 
 INGEST = ["Apollo 11", "Python (programming language)", "French Revolution", "Mount Everest", "Transistor",
           "Great Depression", "Photosynthesis", "CRISPR gene editing", "Tardigrade", "Byzantine Empire"]
 HOLDOUT = ["Apollo 12", "Ruby (programming language)", "Russian Revolution", "K2", "Vacuum tube",
            "Chemosynthesis"]
-UA = "jevrag-bench/1.0 (https://github.com/MersivMedia/jev-rag-retrieval)"
+UA = "jev-retrieval-bench/1.0 (https://github.com/MersivMedia/jev-rag-retrieval)"
 GATEWAY = "https://ai-gateway.vercel.sh/v1/chat/completions"
 QGEN_MODEL = "openai/gpt-4.1-mini"
 EMBEDDER = "gateway:openai/text-embedding-3-small"
@@ -326,7 +326,7 @@ async def run_queries(a: argparse.Namespace, qs: List[Dict[str, Any]], cfg: str,
 
 async def vector_only(rag: Pipeline, query: str, collection: str) -> Any:
     """Plain dense retrieval: top TOP_N by similarity, no Jev at all."""
-    from jevrag.retrieve.result import Passage, RetrievalResult
+    from jev_retrieval.retrieve.result import Passage, RetrievalResult
     vec = await rag.embedder.embed_query(query)
     hits = await asyncio.to_thread(rag.store.query, collection, vec, {"ne": {"quarantined": True}}, TOP_N)
     res = RetrievalResult(query=query)
@@ -528,7 +528,7 @@ async def cmd_report(a: argparse.Namespace) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("stage", choices=["build", "ingest", "query", "latency", "report"])
-    ap.add_argument("--dir", default=".jevrag/bench")
+    ap.add_argument("--dir", default=".jev-retrieval/bench")
     ap.add_argument("--store", default="pgvector", choices=["pgvector", "qdrant-local"])
     ap.add_argument("--configs", nargs="+", default=list(CONFIGS), choices=list(CONFIGS))
     ap.add_argument("--modes", nargs="+", default=["vector", "jev"], choices=["vector", "jev"])

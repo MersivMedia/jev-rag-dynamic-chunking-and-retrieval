@@ -86,7 +86,7 @@ class _HTTPEmbedder(Embedder):
         cur = getattr(self, "_client_loop", None)
         if cur is not loop or getattr(self, "_client", None) is None:
             self._client = httpx.AsyncClient(timeout=self._timeout, transport=self._transport,
-                                             headers={"User-Agent": f"jevrag/{__version__}"})
+                                             headers={"User-Agent": f"jev-retrieval/{__version__}"})
             self._client_loop = loop
         return self._client
 

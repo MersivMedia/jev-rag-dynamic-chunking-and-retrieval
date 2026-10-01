@@ -2,7 +2,7 @@
 
 Pinecone adapter (``pip install ...[pinecone]``, the ``pinecone`` package; ``pinecone-client`` is deprecated).
 
-A jevrag collection is a **namespace** in one serverless index. The index is
+A jev-retrieval collection is a **namespace** in one serverless index. The index is
 created if missing (``PINECONE_CLOUD`` / ``PINECONE_REGION``, default aws /
 us-east-1). Text is stored in metadata, trimmed to fit Pinecone's per-record
 metadata limit (40 KB) with a warning. Manifests are a reserved record per namespace.
@@ -21,7 +21,7 @@ from ..types import Hit, Record
 from .base import Capabilities, VectorStore, similarity
 from .filters import FilterError, Node, Where, parse, push_down_not
 
-log = logging.getLogger("jevrag.pinecone")
+log = logging.getLogger("jev_retrieval.pinecone")
 MANIFEST_ID = str(uuid.UUID("00000000-0000-0000-0000-00000000cafe"))
 MAX_METADATA_BYTES = 40_000
 TEXT_BUDGET = 30_000
@@ -99,7 +99,7 @@ class PineconeStore(VectorStore):
                 return {str(n.args[0].field): {"$exists": False}}
             if n.op in ("gt", "gte", "lt", "lte") and isinstance(n.value, (str, bool)):
                 raise FilterError(f"Pinecone range filters need numbers, got {n.value!r} for {n.field}")
-            if n.op in ("ne", "nin"):  # jevrag semantics: must have the field
+            if n.op in ("ne", "nin"):  # jev-retrieval semantics: must have the field
                 val = list(n.value) if n.op == "nin" else n.value
                 return {"$and": [{str(n.field): {"$exists": True}}, {str(n.field): {f"${n.op}": val}}]}
             val = list(n.value) if n.op == "in" else n.value

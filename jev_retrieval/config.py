@@ -1,4 +1,4 @@
-"""``jevrag.yaml``: every setting in one file; secrets only from the environment (FR-X3)."""
+"""``jev-retrieval.yaml``: every setting in one file; secrets only from the environment (FR-X3)."""
 
 from __future__ import annotations
 
@@ -14,16 +14,16 @@ from .enrich import EnrichConfig, Taxonomy
 from .jev import JevConfig
 from .retrieve import AnswerConfig, RetrieveConfig
 
-DEFAULT_FILE = "jevrag.yaml"
+DEFAULT_FILE = "jev-retrieval.yaml"
 
 TEMPLATE = """\
-# jevrag configuration. Secrets come from the environment only.
+# jev-retrieval configuration. Secrets come from the environment only.
 # Thresholds are starting points, not measured defaults: tune them on your own data.
 
 jev:
   backend: auto                # auto | typesafe | vercel | openrouter (auto = first key found)
   # model: jev-1.13.0          # pin a version; each backend has its own default ID
-  cache_dir: .jevrag/cache     # answers are cached by content hash
+  cache_dir: .jev-retrieval/cache     # answers are cached by content hash
   max_rps: 30                  # published limit is 40 requests/s
 
 store:
@@ -62,18 +62,18 @@ retrieve:
     max_passages: 8
   gate: {{ mode: on, answer_min: 0.35 }}
 
-answer:                        # only used by answer() / `jevrag query --answer`
+answer:                        # only used by answer() / `jev-retrieval query --answer`
   provider: openai             # openai | anthropic | gateway
   model: gpt-4.1-mini
 """
 
 STORE_TEMPLATES = {
-    "memory": "  kind: memory\n  path: .jevrag/memory-store.json",
+    "memory": "  kind: memory\n  path: .jev-retrieval/memory-store.json",
     "qdrant": "  kind: qdrant\n  url: http://localhost:6333\n  # api_key_env: QDRANT_API_KEY",
-    "chroma": "  kind: chroma\n  path: .jevrag/chroma        # or host: localhost + port: 8000",
+    "chroma": "  kind: chroma\n  path: .jev-retrieval/chroma        # or host: localhost + port: 8000",
     "pgvector": "  kind: pgvector\n  dsn_env: DATABASE_URL        # postgresql://user:pass@host:5432/db",
     "pinecone": "  kind: pinecone               # EXPERIMENTAL: not yet tested against a live index\n"
-                "  index: jevrag                # collection = namespace in this index\n"
+                "  index: jev-retrieval         # collection = namespace in this index\n"
                 "  # api_key_env: PINECONE_API_KEY",
 }
 

@@ -15,7 +15,7 @@ from .base import Capabilities, VectorStore, similarity
 from .filters import FilterError, Node, Where, matches, parse, push_down_not
 
 _SPACE = {"cosine": "cosine", "dot": "ip", "l2": "l2"}
-MANIFEST_KEY = "jevrag_manifest"
+MANIFEST_KEY = "jev_retrieval_manifest"
 
 
 class ChromaStore(VectorStore):
@@ -75,7 +75,7 @@ class ChromaStore(VectorStore):
     #
     # Chroma can't test field existence, and its $ne / $nin also match records
     # that lack the field. So the adapter pushes down a *superset* filter
-    # (existence tests become "true") and applies the exact jevrag semantics in
+    # (existence tests become "true") and applies the exact jev-retrieval semantics in
     # Python afterwards, over-fetching for queries when the push-down is lossy.
 
     def _where(self, node: Optional[Node]) -> Tuple[Optional[Dict[str, Any]], bool]:

@@ -99,7 +99,7 @@ class VectorStore(ABC):
 
     # -- manifest (FR-I3): default is a sidecar file; adapters override natively ---
 
-    manifest_dir: str = ".jevrag/manifests"
+    manifest_dir: str = ".jev-retrieval/manifests"
 
     def _manifest_path(self, collection: str) -> Path:
         return Path(os.path.expanduser(self.manifest_dir)) / f"{self.kind}-{safe_name(collection, 120)}.json"

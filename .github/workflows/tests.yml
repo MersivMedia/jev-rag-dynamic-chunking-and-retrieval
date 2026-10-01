@@ -31,8 +31,8 @@ jobs:
       postgres:
         image: pgvector/pgvector:pg17
         env:
-          POSTGRES_PASSWORD: jevrag
-          POSTGRES_DB: jevrag
+          POSTGRES_PASSWORD: jev_retrieval
+          POSTGRES_DB: jev_retrieval
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
@@ -44,5 +44,5 @@ jobs:
       - run: pip install -e ".[pgvector,dev]"
       - name: Store conformance against Postgres + pgvector
         env:
-          JEVRAG_TEST_PG_DSN: postgresql://postgres:jevrag@localhost:5432/jevrag
+          JEV_RETRIEVAL_TEST_PG_DSN: postgresql://postgres:jev_retrieval@localhost:5432/jev_retrieval
         run: pytest -q tests/stores -k pgvector

@@ -47,17 +47,17 @@ Homepage = "https://github.com/MersivMedia/jev-rag-retrieval"
 Issues = "https://github.com/MersivMedia/jev-rag-retrieval/issues"
 
 [project.scripts]
-jevrag = "jevrag.cli:main"
+jev-retrieval = "jev_retrieval.cli:main"
 
 [build-system]
 requires = ["setuptools>=75,<90"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["jevrag*"]
+include = ["jev_retrieval*"]
 
 [tool.setuptools.package-data]
-jevrag = ["templates/*"]
+jev_retrieval = ["templates/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

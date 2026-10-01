@@ -87,7 +87,7 @@ class JevConfig:
     model: Optional[str] = None
     base_url: Optional[str] = None
     api_key_env: Optional[str] = None
-    cache_dir: Optional[str] = ".jevrag/cache"
+    cache_dir: Optional[str] = ".jev-retrieval/cache"
     max_rps: float = 30.0  # published limit is 40; keep headroom
     max_tokens_per_s: float = 80_000.0  # published limit is 100k
     max_concurrency: int = 16
@@ -229,7 +229,7 @@ class JevClient:
     async def __aenter__(self) -> "JevClient":
         self._http = httpx.AsyncClient(
             transport=self._transport,
-            headers={"User-Agent": f"jevrag/{__version__} (+https://github.com/MersivMedia/jev-rag-retrieval)"},
+            headers={"User-Agent": f"jev-retrieval/{__version__} (+https://github.com/MersivMedia/jev-rag-retrieval)"},
             timeout=self.config.timeout_s,
         )
         self._limiter = _Limiter(self.config.max_rps, self.config.max_tokens_per_s)

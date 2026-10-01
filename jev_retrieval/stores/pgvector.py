@@ -4,7 +4,7 @@ One table per collection: ``id uuid``, ``embedding vector(dim)``, ``text``,
 ``metadata jsonb``. Creates the ``vector`` extension, an HNSW index with the
 right operator class, and expression indexes on filter fields. Filters compile
 to parameterised SQL; field names are validated, never interpolated raw.
-Manifests live in a ``jevrag_manifests`` table.
+Manifests live in a ``jev_retrieval_manifests`` table.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ _FIELD = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]{0,62}$")
 class PgVectorStore(VectorStore):
     kind = "pgvector"
 
-    def __init__(self, dsn: Optional[str] = None, *, schema: str = "public", table_prefix: str = "jevrag_",
+    def __init__(self, dsn: Optional[str] = None, *, schema: str = "public", table_prefix: str = "jev_retrieval_",
                  conn: Any = None) -> None:
         try:
             import psycopg  # type: ignore

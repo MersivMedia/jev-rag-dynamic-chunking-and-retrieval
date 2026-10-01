@@ -10,7 +10,7 @@ Jev-steered chunking, ingestion and retrieval for any vector database.
 - **Your database.** Adapters for Postgres + pgvector, Qdrant and Chroma, plus a bridge to any LangChain vector store, all held to one conformance suite. A Pinecone adapter is included as experimental.
 - **Cheap.** A small end-to-end run cost $0.00024 of Jev to ingest four documents and under $0.0001 per query ([measured](docs/RESULTS.md)). Jev charges $0.042 per million input tokens and nothing for output.
 
-> **Status: v1.0 in development.** The pipeline below is built and tested: 163 offline tests, the store conformance suite against real Postgres + pgvector, and a live end-to-end test against Jev. A first benchmark on 97,000 words of Wikipedia with 156 questions is done: Jev retrieval ranked the evidence first for 96.5% of questions against 79% for plain vector search, sent about 75% less context, and abstained on 40 of 42 unanswerable questions, while Jev chunking did no better than structural chunking. A second benchmark on messy PDFs, raw web pages and transcripts with planted junk and injections found the same pattern. It also found that Jev classification kept every planted injection out of the answer model's context, and that ingest quarantine works per chunk, so it hid some real answers that shared a chunk with an injection. See [Results](docs/RESULTS.md) for how it was measured, its limits, and what hasn't been measured yet, and [Known issues](docs/KNOWN_ISSUES.md).
+> **Status: v1.0 in development.** The pipeline below is built and tested: 166 offline tests, the store conformance suite against real Postgres + pgvector, and a live end-to-end test against Jev. A first benchmark on 97,000 words of Wikipedia with 156 questions is done: Jev retrieval ranked the evidence first for 96.5% of questions against 79% for plain vector search, sent about 75% less context, and abstained on 40 of 42 unanswerable questions, while Jev chunking did no better than structural chunking. A second benchmark on messy PDFs, raw web pages and transcripts with planted junk and injections found the same pattern. It also found that Jev classification kept every planted injection out of the answer model's context. Screening each paragraph before chunking then raised the hit rate on that set from 93.4% to 96.7%. It quarantined all 6 injections without hiding any real answers, and removed 11 of 12 planted junk paragraphs. See [Results](docs/RESULTS.md) for how it was measured, its limits, and what hasn't been measured yet, and [Known issues](docs/KNOWN_ISSUES.md).
 
 jevrag uses [Jev](https://docs.typesafe.ai/introduction), TypeSafe AI's System One model. Jev never writes text. It answers typed questions (a yes/no probability, one option from a list, or a score on a scale), and plain code with visible thresholds decides what happens. Every decision is logged with its probabilities.
 
@@ -19,6 +19,7 @@ jevrag uses [Jev](https://docs.typesafe.ai/introduction), TypeSafe AI's System O
 | Stage | What Jev decides | What code does |
 |---|---|---|
 | Chunking | Does this sentence continue the point of the previous one? Does it depend on it to make sense? | Places cuts where continuity is lowest, within min/target/max token sizes |
+| Paragraph screen | Is this paragraph boilerplate? Does it contain instructions aimed at an AI? | Cuts it before chunking, or quarantines it alone |
 | Quality screen | Is this chunk filler or boilerplate? Does it contain instructions aimed at an AI? Is it self-contained? | Drops, quarantines or keeps it |
 | Tagging | Which option of each taxonomy field fits, including `other` | Stores the tag only when confident; always stores the probability |
 | Query routing | Which taxonomy value the question is about | Applies a metadata filter only when confident; retries unfiltered if it returns too little |
@@ -178,10 +179,10 @@ Unknown keys are rejected with an error, so a typo like `topk` fails loudly.
 
 ## Ingestion guide: processing and storing embeddings
 
-Ingestion turns files into records in your vector database. Five steps, each inspectable on its own.
+Ingestion turns files into records in your vector database. Six steps, each inspectable on its own.
 
 ```
-files -> 1 parse -> 2 chunk -> 3 enrich -> 4 embed -> 5 store
+files -> 1 parse -> 2 screen paragraphs -> 3 chunk -> 4 enrich -> 5 embed -> 6 store
 ```
 
 ### Step 1: Parse
@@ -208,7 +209,29 @@ rag.ingest(docs, collection="handbook")
 
 `doc_id` should be stable across runs (a URL, path or database key). It's what makes re-ingestion replace old chunks instead of duplicating them. For files, it's the path relative to the folder you ingest. `format` is `markdown` (default), `text` or `html`. Scalar `metadata` values are stored as `m_<key>` and can be filtered on.
 
-### Step 2: Chunk
+### Step 2: Screen paragraphs
+
+Before chunking, every paragraph, list item, table and quote is checked on its own with two yes/no questions:
+
+| Question | Default action |
+|---|---|
+| `boilerplate`: navigation, cookie banner, newsletter or share prompt, advert, legal footer, table of contents, reference-list entry? | Cut from the text at ≥ 0.85 (listed in the report) |
+| `instructs_ai`: does it contain instructions addressed to an AI assistant? | Cut and stored alone as a **quarantined** record at ≥ 0.70 |
+
+The checks are packed 40 paragraphs to a Jev request, with each question carrying its own paragraph.
+
+Why per paragraph and not per chunk:
+- **Junk survives a chunk-level check.** A short cookie banner or share bar is under `min_tokens`, so it gets merged into a content chunk, where it's a small fraction of the text and passes.
+- **Chunk-level quarantine hides real content.** An injection planted between two real paragraphs would be quarantined together with them.
+
+Measured on the [messy-document benchmark](docs/RESULTS.md#paragraph-level-screening-rerun-of-the-messy-benchmark): all 6 planted injections were quarantined alone, with no answers hidden, and 11 of 12 planted boilerplate paragraphs were removed. The hit rate rose from 93.4% to 96.7%.
+
+Cut paragraphs are blanked in a working copy, so chunk offsets still point into the original document. Headings and code are never screened.
+- **Reference lists are cut too.** If your users ask about citations, run `enrich.screen_paragraphs: shadow` first: it scores and logs everything and cuts nothing.
+- **`off`** skips this step.
+- **On Jev failure**, a batch's paragraphs are kept.
+
+### Step 3: Chunk
 
 Within each section, jevrag sends Jev the section text (in windows sized to Jev's request budget) plus two yes/no questions for every adjacent pair of sentences, all in **one request per window**:
 
@@ -242,9 +265,9 @@ Each chunk also gets an `embed_text`: the document title and heading path prepen
 
 Other methods: `structural` (headings and paragraph breaks, no Jev), `fixed` (about `target_tokens` per chunk, sentence-aligned, with optional `overlap_tokens`), and `semantic-embedding` (cut where adjacent sentence embeddings diverge; one embedding call per sentence). If Jev fails, `jev` falls back to `structural` and the ingest report says so.
 
-### Step 3: Enrich
+### Step 4: Enrich
 
-One Jev request per chunk carries every enrichment question at once.
+One Jev request per chunk carries every enrichment question at once. This is a second check after the paragraph screen, and it adds the tags.
 
 **Quality screen** (yes/no probabilities, stored as `q_<name>`):
 
@@ -290,7 +313,7 @@ A tag is stored as `tag_<field>` only when Jev's confidence is at least `tag_min
 
 **Duplicates.** Chunks with identical text within a document are stored once.
 
-### Step 4: Embed
+### Step 5: Embed
 
 Chunks are embedded in batches with the configured provider.
 
@@ -308,7 +331,7 @@ Model names are examples; use any model your provider serves. Extra keys under `
 
 The first ingest writes a **collection manifest**: embedding provider and model, dimension, distance metric, chunker, taxonomy version and jevrag version. Later ingests or queries with a different embedding model are refused with a clear error, because mixing embedding models in one collection silently ruins retrieval. To switch models, ingest into a new collection.
 
-### Step 5: Store
+### Step 6: Store
 
 Each chunk becomes one record:
 

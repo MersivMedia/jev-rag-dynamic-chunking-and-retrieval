@@ -84,6 +84,9 @@ class EnrichConfig:
     drop_boilerplate: float = 0.85
     quarantine_instructs_ai: float = 0.70
     tag_min_confidence: float = 0.50
+    # paragraph-level screening before chunking (see enrich/screen.py); uses the two thresholds above
+    screen_paragraphs: str = "on"  # on | shadow | off
+    screen_batch: int = 40  # paragraphs per Jev request
     taxonomy: Taxonomy = field(default_factory=Taxonomy)
 
 

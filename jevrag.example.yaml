@@ -100,6 +100,9 @@ enrich:
   drop_boilerplate: 0.85
   quarantine_instructs_ai: 0.70   # stored with quarantined=true, excluded from queries
   tag_min_confidence: 0.50        # below this the tag is stored as `unknown`
+  screen_paragraphs: on           # on | shadow | off: screen each paragraph before chunking, so an injection
+                                  #   is quarantined alone and short junk is cut instead of merged into content
+  screen_batch: 40                # paragraphs per Jev request
   # taxonomy: taxonomy.yaml       # fields to tag and custom questions; see the README
 
 # ---------------------------------------------------------------------------

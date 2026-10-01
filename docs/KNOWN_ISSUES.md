@@ -27,10 +27,11 @@ Current limits of the v1.0 development build. Each has a workaround or a milesto
 
 ## Security
 
-- **Injection screening is one layer.** It caught the planted instruction in every test so far, but it hasn't been measured on a real attack set. Keep treating retrieved text as data in your LLM's system prompt (jevrag's `answer()` does).
+- **Injection screening is one layer.** It caught all 6 planted instructions in the messy benchmark (and kept them out of every query's context), but it hasn't been measured on a real attack set. Keep treating retrieved text as data in your LLM's system prompt (jevrag's `answer()` does).
 
 ## Measured weaknesses (messy-document benchmark)
 
-- **Quarantine is chunk-level.** A planted injection is caught, but the whole chunk around it is quarantined: in testing, 3 of 6 such chunks also held real answers. Workaround: `enrich.quarantine_instructs_ai: 1.01` turns off ingest quarantine; Jev classification still blocked every injection at query time. Fix planned: screen at paragraph level or cut a boundary around instruction-like text.
-- **Short junk paragraphs are merged, not dropped.** Boilerplate shorter than `chunking.min_tokens` (64) is merged into a neighbouring content chunk before enrichment sees it, so it isn't dropped. Lowering `min_tokens` helps at the cost of more small chunks.
-- **Reference lists from raw HTML survive.** Wikipedia "References" sections are kept and can be retrieved; the gate once passed a citation-list chunk (gate 0.88). Strip reference sections before ingest if you can.
+- **Paragraph screening drops reference lists.** Bibliographies and citation lists score as boilerplate and are cut (about 1,000 paragraphs in the messy benchmark, almost all references). Good for most RAG, wrong if users ask about citations: use `enrich.screen_paragraphs: shadow` to review first, or `off`.
+- **Occasional false-positive quarantine.** One harmless Wikipedia maintenance tag ("Use dmy dates from January 2026") scored 0.74 for `instructs_ai` and was quarantined. Quarantined paragraphs are stored, not deleted, so they can be audited with `jevrag inspect`.
+- **Injection screening misses what it isn't shown.** Every planted injection so far was its own paragraph. An instruction woven into a sentence of real content shares that paragraph's fate: the paragraph is quarantined whole. This hasn't been measured.
+- **Fixed in 1.0.0.dev0 (paragraph screening):** chunk-level quarantine hid 4 answers that shared a chunk with an injection, and short boilerplate under `min_tokens` was merged into content chunks (0 of 12 dropped). Both are measured fixed in [Results](RESULTS.md#paragraph-level-screening-rerun-of-the-messy-benchmark).

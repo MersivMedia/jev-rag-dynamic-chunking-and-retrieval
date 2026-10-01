@@ -64,6 +64,9 @@ CONFIGS = {
     "jev": dict(chunking=ChunkConfig(method="jev"), enrich=EnrichConfig(mode="on")),
     "structural": dict(chunking=ChunkConfig(method="structural"), enrich=EnrichConfig(mode="off")),
     "fixed": dict(chunking=ChunkConfig(method="fixed"), enrich=EnrichConfig(mode="off")),
+    # controls: same screening + enrichment as "jev", different chunker; separates the chunker's effect
+    "structural_screen": dict(chunking=ChunkConfig(method="structural"), enrich=EnrichConfig(mode="on")),
+    "fixed_screen": dict(chunking=ChunkConfig(method="fixed"), enrich=EnrichConfig(mode="on")),
 }
 TOP_N = 8  # passages handed to the LLM in vector mode; equals classify.max_passages
 

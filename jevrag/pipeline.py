@@ -7,9 +7,11 @@ Sync methods (``ingest``, ``retrieve``, ``answer``) wrap async ones
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import datetime as dt
 import json
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,6 +22,7 @@ from .chunk import ChunkConfig, chunk_document, estimate_jev_requests
 from .config import Config
 from .embed import Embedder, make_embedder
 from .enrich import EnrichConfig, enrich_chunks
+from .enrich import screen as para_screen
 from .jev import JevClient, JevConfig
 from .jev.client import estimate_tokens
 from .parse import load_file, iter_paths
@@ -45,6 +48,7 @@ class DocReport:
     fallback: Optional[str] = None
     error: Optional[str] = None
     dropped_detail: List[Dict[str, Any]] = field(default_factory=list)
+    screened_paragraphs: int = 0
 
 
 @dataclass
@@ -90,6 +94,18 @@ class IngestReport:
         return {"collection": self.collection, "dry_run": self.dry_run, "seconds": round(self.seconds, 2),
                 "jev": self.jev, "embedding_tokens": self.embedding_tokens, "estimate": self.estimate,
                 "docs": [d.__dict__ for d in self.docs]}
+
+
+_BLANK_LINES = re.compile(r"\n[ \t]*\n(?:[ \t]*\n)+")
+
+
+def _tidy(c: Chunk) -> Chunk:
+    """Collapse the blank runs left where screened paragraphs were cut out of a chunk."""
+    body = _BLANK_LINES.sub("\n\n", c.text).strip()
+    if body == c.text:
+        return c
+    prefix = c.embed_text[: len(c.embed_text) - len(c.text)] if c.embed_text.endswith(c.text) else ""
+    return dataclasses.replace(c, text=body, embed_text=prefix + body if prefix else body)
 
 
 def _run(coro: Any) -> Any:
@@ -215,7 +231,12 @@ class Pipeline:
             reqs = toks = 0
             uses_jev_chunking = self.chunking.method == "jev" and self.chunking.mode != "off"
             uses_enrich = self.enrich_cfg.mode != "off"
+            uses_screen = self.enrich_cfg.screen_paragraphs != "off" and uses_enrich
             for d in docs:
+                if uses_screen:
+                    r, t = para_screen.estimate(d, self.enrich_cfg.screen_batch)
+                    reqs += r
+                    toks += t
                 n_chunks = max(1, len(d.text) // max(1, self.chunking.target_tokens * 4))
                 if uses_jev_chunking:
                     r, t = estimate_jev_requests(d, self.chunking, self.count)
@@ -264,8 +285,33 @@ class Pipeline:
                         rep.status = "skipped_unchanged"
                         rep.chunks = len(existing)
                         return rep
-            chunks, ctrace = await chunk_document(doc, self.chunking, jev=jev, embedder=self.embedder,
+            sres = None
+            work = doc
+            ec = self.enrich_cfg
+            if jev is not None and ec.screen_paragraphs != "off" and ec.mode != "off":
+                sres = await para_screen.screen_document(
+                    jev, doc, mode="shadow" if ec.mode == "shadow" else ec.screen_paragraphs,
+                    drop_boilerplate=ec.drop_boilerplate, quarantine_instructs_ai=ec.quarantine_instructs_ai,
+                    batch=ec.screen_batch)
+                rep.screened_paragraphs = sres.screened
+                if sres.text != doc.text:
+                    work = dataclasses.replace(doc, text=sres.text)
+            chunks, ctrace = await chunk_document(work, self.chunking, jev=jev, embedder=self.embedder,
                                                   count=self.count)
+            if work is not doc:
+                chunks = [_tidy(c) for c in chunks]
+            screened_out = []
+            if sres is not None:
+                for b, p in sres.dropped:
+                    rep.dropped_detail.append({"chunk_index": None, "reason": "boilerplate", "level": "paragraph",
+                                               "score": round(p, 4), "text": doc.text[b.start:b.end][:160]})
+                for k, (b, p) in enumerate(sres.quarantined):
+                    body = doc.text[b.start:b.end]
+                    screened_out.append(Chunk(
+                        text=body, doc_id=did, chunk_index=len(chunks) + k, char_start=b.start, char_end=b.end,
+                        section_path=list(b.section_path), chunker="screen", tokens=self.count(body),
+                        title=doc.title, source_uri=doc.source_uri, embed_text=body,
+                        answers={"q_instructs_ai": round(p, 4)}, quarantined=True))
             rep.chunker = ctrace.method_used
             rep.fallback = ctrace.fallback_reason if ctrace.method_requested == "jev" and \
                 ctrace.method_used != "jev" and self.chunking.mode != "off" else None
@@ -278,11 +324,12 @@ class Pipeline:
                 seen.add(c.content_hash)
                 unique.append(c)
             er = await enrich_chunks(jev, unique, self.enrich_cfg)
-            rep.dropped = len(er.dropped) + (len(chunks) - len(unique))
-            rep.quarantined = len(er.quarantined)
-            rep.dropped_detail += [{"chunk_index": c.chunk_index, "reason": c.dropped_reason,
+            n_para_dropped = len(sres.dropped) if sres is not None else 0
+            rep.dropped = len(er.dropped) + (len(chunks) - len(unique)) + n_para_dropped
+            rep.quarantined = len(er.quarantined) + len(screened_out)
+            rep.dropped_detail += [{"chunk_index": c.chunk_index, "reason": c.dropped_reason, "level": "chunk",
                                     "text": c.text[:160]} for c in er.dropped]
-            stored = er.kept + er.quarantined
+            stored = er.kept + er.quarantined + screened_out
             stored.sort(key=lambda c: c.chunk_index)
             vectors = await self.embedder.embed_documents([c.embed_text or c.text for c in stored]) if stored else []
             async with manifest_lock:
@@ -308,8 +355,14 @@ class Pipeline:
             rep.chunks = len(records)
             self._write_trace(collection, did, {"doc_id": did, "chunking": ctrace.to_dict(),
                                                 "dropped": rep.dropped_detail,
-                                                "quarantined": [c.id for c in er.quarantined],
-                                                "enrich_failed": er.failed, "shadow_actions": er.shadow_actions})
+                                                "quarantined": [c.id for c in er.quarantined + screened_out],
+                                                "enrich_failed": er.failed, "shadow_actions": er.shadow_actions,
+                                                "screen": None if sres is None else {
+                                                    "paragraphs": sres.screened, "requests": sres.requests,
+                                                    "failed_batches": sres.failed_batches,
+                                                    "quarantined": [doc.text[b.start:b.end][:160]
+                                                                    for b, _ in sres.quarantined],
+                                                    "shadow": sres.shadow}})
         except Exception as exc:  # one bad document never aborts the batch
             if isinstance(exc, ManifestMismatch):
                 raise

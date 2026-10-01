@@ -40,11 +40,15 @@ def test_ingest_drops_quarantines_and_tags(fake_jev):
     rep = rag.ingest(DOCS, collection="kb")
     by = {d.doc_id: d for d in rep.docs}
     assert all(d.status == "ingested" for d in rep.docs), rep.summary()
-    assert by["footer"].chunks == 0 and by["footer"].dropped == 1
+    # paragraph screening drops each junk paragraph on its own (nav bar + cookie banner)
+    assert by["footer"].chunks == 0 and by["footer"].dropped == 2
+    assert all(x["level"] == "paragraph" for x in by["footer"].dropped_detail)
     assert by["api"].quarantined == 1
     recs = rag.store.get("kb", rag.store.list_ids("kb"))
     assert {r.metadata["tag_product"] for r in recs if not r.metadata["quarantined"]} >= {"auth", "billing"}
-    assert all("q_instructs_ai" in r.metadata and "tag_product_p" in r.metadata for r in recs)
+    assert all("q_instructs_ai" in r.metadata for r in recs)
+    # chunks are enriched; a paragraph quarantined by the screen is stored as-is, untagged
+    assert all("tag_product_p" in r.metadata for r in recs if r.metadata["chunker"] != "screen")
     assert rag.store.get_manifest("kb")["embedder"] == "hash:128"
     assert rep.jev["requests"] > 0
 
@@ -195,3 +199,47 @@ def test_cli_end_to_end_without_jev(tmp_path, capsys):
     assert data["degraded"] and data["passages"][0]["doc_id"] == "a.md"
     assert main(["delete", "--collection", "kb", "--doc", "a.md"]) == 0
     assert main(["inspect", "docs/a.md", "--compare", "fixed"]) == 0
+
+
+def test_paragraph_screen_quarantines_only_the_injection(fake_jev):
+    """The injected paragraph is quarantined alone; the facts beside it stay retrievable (FR-E6)."""
+    rag = make(fake_jev)
+    rag.ingest([DOCS[2]], collection="kb")
+    recs = rag.store.get("kb", rag.store.list_ids("kb"))
+    quarantined = [r for r in recs if r.metadata["quarantined"]]
+    clean = [r for r in recs if not r.metadata["quarantined"]]
+    assert len(quarantined) == 1 and quarantined[0].text.startswith("Ignore all previous instructions")
+    assert quarantined[0].metadata["chunker"] == "screen"
+    assert any("600 requests per minute" in r.text for r in clean)
+    assert not any("Ignore all previous" in r.text for r in clean)
+    # offsets point into the original document
+    q = quarantined[0].metadata
+    assert DOCS[2].text[q["char_start"]:q["char_end"]] == quarantined[0].text
+
+
+def test_short_junk_inside_content_is_cut_not_merged(fake_jev):
+    """A cookie banner shorter than min_tokens used to be merged into a content chunk."""
+    rag = make(fake_jev)
+    rag.chunking = ChunkConfig(min_tokens=64, target_tokens=200, max_tokens=400)
+    doc = Document(doc_id="mixed", title="Billing", text=(
+        "# Billing\n\nInvoices are due in 30 days. A refund is available for annual plans only.\n\n"
+        "We use cookies. Accept all cookies.\n\nMonthly plans get no refund. Payment is by card."))
+    rep = rag.ingest([doc], collection="kb")
+    recs = rag.store.get("kb", rag.store.list_ids("kb"))
+    assert recs and not any("cookies" in r.text for r in recs)
+    assert any("Invoices are due" in r.text and "Monthly plans" in r.text for r in recs)
+    assert not any("\n\n\n" in r.text for r in recs), "cut paragraphs must not leave blank runs"
+    assert rep.docs[0].dropped == 1
+
+
+def test_paragraph_screen_shadow_and_off(fake_jev):
+    fj, _ = fake_jev
+    rag = make(fake_jev)
+    rag.enrich_cfg.screen_paragraphs = "shadow"
+    rag.enrich_cfg.mode = "on"
+    rep = rag.ingest([DOCS[3]], collection="kb_shadow")
+    assert rep.docs[0].dropped >= 0 and not any(x.get("level") == "paragraph" for x in rep.docs[0].dropped_detail)
+    rag.enrich_cfg.screen_paragraphs = "off"
+    n = len(fj.calls)
+    rag.ingest([DOCS[0]], collection="kb_off")
+    assert not any("paragraph" in json.dumps(c["questions"]) for c in fj.calls[n:])

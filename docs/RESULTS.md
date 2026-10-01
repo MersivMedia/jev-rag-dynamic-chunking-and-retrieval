@@ -2,9 +2,55 @@
 
 Every number in the README comes from this page. Each entry says what was run, how, and what it does **not** show.
 
-**Measured so far:** two benchmarks. One uses long Wikipedia articles ([details](#larger-benchmark-10-long-articles-156-questions)); the other uses messy PDFs, raw web pages and transcripts with planted junk and injections ([details](#messy-documents-pdfs-raw-web-pages-transcripts-planted-traps)). On both, Jev retrieval put the answer first far more often and sent 60 to 75% less context. The gate abstained on 40 of 42 and 26 of 29 unanswerable questions. Jev classification kept every planted injection out of the answer model's context. Jev chunking did not beat structural or fixed-size chunking on either set. Ingest screening caught all 6 injections, but quarantining whole chunks also hid 4 answers. **Not measured yet:** the public sets in milestone M2 of the [PRD](PRD.md) (SciFact, FiQA, QASPER), harder questions, and a cross-encoder re-ranking baseline.
+**Measured so far:** two benchmarks. One uses long Wikipedia articles ([details](#larger-benchmark-10-long-articles-156-questions)); the other uses messy PDFs, raw web pages and transcripts with planted junk and injections ([details](#messy-documents-pdfs-raw-web-pages-transcripts-planted-traps), rerun with [paragraph-level screening](#paragraph-level-screening-rerun-of-the-messy-benchmark)). Jev retrieval put the answer first far more often and sent 60 to 75% less context. The gate abstained on 40 of 42 and 26 of 29 unanswerable questions. Paragraph-level screening at ingest raised the messy-set hit rate from 93.4% to 96.7% with every chunker. It quarantined all 6 planted injections without hiding any answers, and removed 11 of 12 planted boilerplate paragraphs. Jev chunking did not beat structural or fixed-size chunking in any run. **Not measured yet:** the public sets in milestone M2 of the [PRD](PRD.md) (SciFact, FiQA, QASPER), harder questions, and a cross-encoder re-ranking baseline.
 
 All runs: 30 September 2026, Jev through Vercel AI Gateway (`typesafe-ai/jev`, which serves `jev-1.13`), embeddings `openai/text-embedding-3-small` through the same gateway.
+
+## Paragraph-level screening (rerun of the messy benchmark)
+
+**Change:** before chunking, each paragraph, list item, table and quote is screened on its own.
+- Each request carries 40 paragraphs, and each question carries its paragraph inline.
+- A paragraph flagged as an instruction to an AI (`instructs_ai` ≥ 0.70) is cut out of the text and stored alone as a quarantined record.
+- A paragraph flagged as boilerplate (≥ 0.85) is cut out and dropped.
+
+Chunk-level enrichment still runs afterwards. Code: [`jevrag/enrich/screen.py`](../jevrag/enrich/screen.py), setting `enrich.screen_paragraphs`.
+
+**Setup:**
+- Same corpus, questions and trap texts as the run above.
+- The raw files were re-parsed with the fixed HTML loader, and each trap was put back after the same paragraph. One trap's anchor paragraph changed in the re-parse, so it went mid-document instead.
+- No answer evidence was lost in the re-parse.
+- Two control configs run the same screening and enrichment with the structural and fixed-size chunkers. They separate the screen's effect from the chunker's.
+
+| Config / retrieval | Hit rate | Ranked 1st: PDF / web / transcript | Abstained, unanswerable | Abstained, answerable | Queries that saw an injection | Context tokens |
+|---|---|---|---|---|---|---|
+| jev, before (chunk-level screening) / jev | 93.4% | 80% / 83% / 93% | 26 / 29 | 1 / 91 | 0 / 126 | 984 |
+| **jev + paragraph screen / jev** | **96.7%** | 80% / **92%** / 93% | 26 / 29 | **0 / 91** | 0 / 126 | 984 |
+| **structural + paragraph screen / jev** | **96.7%** | 83% / 89% / 80% | 26 / 29 | 1 / 91 | 0 / 126 | 1,062 |
+| **fixed + paragraph screen / jev** | **96.7%** | 80% / 83% / 93% | 25 / 29 | 0 / 91 | 0 / 126 | 858 |
+| structural, no Jev at ingest / jev | 91.2% | 83% / 81% / 80% | 25 / 29 | 2 / 91 | 0 / 126 | 1,056 |
+| fixed, no Jev at ingest / jev | 94.5% | 83% / 86% / 93% | 26 / 29 | 0 / 91 | 0 / 126 | 846 |
+| structural + paragraph screen / vector only | 92.3% | 45% / 72% / 53% | 0 / 29 | 0 / 91 | **0 / 126** | 2,690 |
+| structural, no Jev at ingest / vector only | 91.2% | 53% / 69% / 53% | 0 / 29 | 0 / 91 | **23 / 126** | 2,689 |
+
+The query runs had 0 cached answers.
+
+**At ingest, for every screened config:**
+
+| | Chunk-level only (before) | Paragraph screen |
+|---|---|---|
+| Planted injections quarantined | 6 of 6, each inside a 170 to 420-token chunk | **6 of 6, each stored alone** |
+| Answerable questions hidden by quarantine | 4 | **0** |
+| Planted boilerplate paragraphs removed | 0 of 12 | **11 of 12** |
+| False-positive quarantine | 0 | 1 (Wikipedia's "Use dmy dates from January 2026" maintenance tag, scored 0.74) |
+| Paragraphs dropped | – | about 1,020, almost all Wikipedia and paper reference lists |
+| Jev cost of ingest | $0.100 (jev chunking) | $0.105 (jev chunking), $0.050 to $0.053 (structural or fixed + screen) |
+
+What this shows:
+- **Both measured failures are fixed.** Injections are quarantined without taking their neighbours with them, so no answers are hidden. Short junk is cut out before chunking instead of merged into content.
+- **The gain comes from the screen, not the chunker.** With the screen, all three chunkers reach the same 96.7%. Without it, they score 91.2 to 94.5%. Structural or fixed chunking plus the screen costs about half the ingest Jev of Jev chunking plus the screen ($0.050 against $0.105) for the same hit rate. **Jev chunking has now been compared on 2 datasets (3 runs) and has not won once.**
+- **Screening at ingest also protects vector-only retrieval.** Without Jev at query time, the screened collection exposed 0 of 126 queries to an injection, against 23 of 126 unscreened.
+- **The screen drops reference lists.** That's desirable for most RAG use, and it removed the citation chunks the gate had wrongly passed in the previous run. But one machine-written question asked about a bibliography entry, so its evidence became unreachable (evidence coverage 98.9%). If citations matter to your use, set `enrich.screen_paragraphs: shadow` and review what it would drop.
+- **Gate misses are unchanged:** 3 of 29 unanswerable Blues questions were still answered from the Jazz article.
 
 ## Messy documents: PDFs, raw web pages, transcripts, planted traps
 
@@ -206,7 +252,7 @@ Per-request Jev latency in these runs: p50 230 to 380 ms, p90 240 to 470 ms.
 
 | Suite | Result |
 |---|---|
-| Offline unit and integration tests (fake Jev over `httpx.MockTransport`) plus store conformance on memory, Qdrant (embedded), Chroma and the LangChain bridge | 163 passed, 1 skipped (the opt-in live test) on Python 3.12 |
+| Offline unit and integration tests (fake Jev over `httpx.MockTransport`) plus store conformance on memory, Qdrant (embedded), Chroma and the LangChain bridge | 166 passed, 1 skipped (the opt-in live test) on Python 3.12 |
 | Store conformance against Postgres 17.11 + pgvector 0.8.6 (Docker) | 27 passed |
 | Offline tests on Python 3.10 with no extras installed (store tests skip) | passed |
 | Live end-to-end (`tests/test_live.py`) against Jev and OpenAI embeddings via Vercel AI Gateway | passed |

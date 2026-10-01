@@ -24,7 +24,7 @@ def _topic(text: str) -> Optional[str]:
     t = text.lower()
     best, n = None, 0
     for name, words in TOPICS.items():
-        k = sum(t.count(w) for w in words)
+        k = sum(len(re.findall(r"\b" + re.escape(w) + r"s?\b", t)) for w in words)  # whole words: "capital" is not "api"
         if k > n:
             best, n = name, k
     return best
@@ -71,6 +71,8 @@ class FakeJev:
         passage = state.get("passage", "") if isinstance(state, dict) else ""
         query = state.get("query", "") if isinstance(state, dict) else ""
         text = state.get("text", "") if isinstance(state, dict) else stext
+        if isinstance(instr, dict) and "paragraph" in instr:  # paragraph screening (inline)
+            text, low = instr["paragraph"], instr["question"].lower()
         if "instructions addressed to an ai" in low:
             src = passage or text
             return {"type": "noul", "noul": 0.97 if "ignore all previous instructions" in src.lower() else 0.02}

@@ -1,6 +1,7 @@
 """Messy-document benchmark: real PDFs and raw web pages, plus planted junk and injections.
 
     python scripts/bench_messy.py build    # load files, add synthetic docs, plant traps, write questions
+    python scripts/bench_messy.py reparse  # re-load files with current loaders; same questions and traps
     python scripts/bench_messy.py ingest   # jev / structural / fixed collections
     python scripts/bench_messy.py query    # vector-only and full Jev retrieval
     python scripts/bench_messy.py report
@@ -191,6 +192,47 @@ async def cmd_build(a: argparse.Namespace) -> None:
           f"{na} answerable, {len(held)} unanswerable, {len(probes)} injection probes")
 
 
+async def cmd_reparse(a: argparse.Namespace) -> None:
+    """Re-load raw files with the current loaders, keeping questions, transcripts and traps.
+
+    Each trap is re-inserted after the paragraph it originally followed (matched by its first 80
+    normalised characters), so before/after runs share questions and trap placements. Questions whose
+    evidence no longer appears in the re-parsed text are listed, not silently dropped.
+    """
+    d = Path(a.dir)
+    path = d / "dataset.json"
+    data = json.loads(path.read_text())
+    (d / "dataset.v0.json").write_text(json.dumps(data, indent=1))
+    by_title = {x["title"]: x for x in data["ingest"]}
+    lost_traps = []
+    for x in data["ingest"]:
+        if not x.get("file"):
+            continue
+        old = x["markdown"]
+        new = load_file(str(d / "raw" / x["file"])).text
+        paras = new.split("\n\n")
+        for tr in [t for t in data["traps"] if t["doc"] == x["title"]]:
+            olds = old.split("\n\n")
+            k = next(i for i, p in enumerate(olds) if p == tr["text"])
+            anchor = next((olds[j] for j in range(k - 1, -1, -1) if len(olds[j].split()) >= 8), "")
+            key = bw.norm(anchor)[:80]
+            hit = next((i for i, p in enumerate(paras) if key and key in bw.norm(p)), None)
+            if hit is None:
+                lost_traps.append((x["title"], tr["text"][:50]))
+                hit = len(paras) // 2
+            paras.insert(hit + 1, tr["text"])
+        x["markdown"] = "\n\n".join(paras)
+        x["words"] = len(x["markdown"].split())
+        print(f"reparsed {x['file']:<26} {len(old.split()):>6} -> {x['words']:>6} words")
+    missing = [q["id"] for q in data["questions"] if q["answerable"] and q.get("doc") in by_title
+               and not bw.evidence_in(q["evidence"], by_title[q["doc"]]["markdown"])]
+    data["reparsed"] = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())
+    data["reparse_missing_evidence"] = missing
+    path.write_text(json.dumps(data, indent=1))
+    print(f"traps re-placed: {len(data['traps']) - len(lost_traps)}/{len(data['traps'])}; lost anchors: {lost_traps}")
+    print(f"answerable questions whose evidence is no longer in the text: {missing}")
+
+
 def _transcript_as_paras(text: str) -> str:
     """Group transcript lines into ~80-word windows so the question generator sees enough context."""
     lines = [ln for ln in text.splitlines() if ln.strip()]
@@ -258,11 +300,20 @@ async def cmd_report(a: argparse.Namespace) -> None:
         rag.close()
         quarantined = [r for r in recs if r.metadata.get("quarantined")]
         ing = ingest.get(cfg, {}).get("report", {})
-        dropped = [x for doc in ing.get("docs", []) for x in doc.get("dropped_detail", [])]
+        url_title = {x["url"]: x["title"] for x in data["ingest"]}
+        dropped = [{**x, "doc": url_title.get(doc["doc_id"])} for doc in ing.get("docs", [])
+                   for x in doc.get("dropped_detail", [])]
         inj_stored_clean = [r for r in recs if not r.metadata.get("quarantined") and is_trap(r.text, traps, "injection")]
         inj_quarantined = [r for r in quarantined if is_trap(r.text, traps, "injection")]
-        bp_dropped = sum(1 for x in dropped if any(bw.evidence_in(t["text"][:80], x.get("text", ""), 0.9)
-                                                   for t in traps if t["kind"] == "boilerplate"))
+        # traps are matched within their own document (the same boilerplate text was planted in two)
+        bp_traps = [t for t in traps if t["kind"] == "boilerplate"]
+        bp_dropped = sum(1 for t in bp_traps if any(x["doc"] == t["doc"] and bw.evidence_in(t["text"][:80], x.get("text", ""), 0.9)
+                                                    for x in dropped))
+        bp_in_stored = sum(1 for t in bp_traps if any(r.metadata.get("title") == t["doc"] and not r.metadata.get("quarantined")
+                                                      and bw.evidence_in(t["text"][:80], r.text, 0.9) for r in recs))
+        inj_alone = sum(1 for r in inj_quarantined if len(r.text.split()) <= 1.3 * max(
+            len(t["text"].split()) for t in traps if t["kind"] == "injection" and bw.evidence_in(t["text"][:120], r.text, 0.9)))
+        para_drops = [x for x in dropped if x.get("level") == "paragraph"]
         covered = {qid: any(bw.evidence_in(q["evidence"], r.text) for r in recs if not r.metadata.get("quarantined"))
                    for qid, q in qs.items() if q["answerable"]}
         lost_to_quarantine = [qid for qid, q in qs.items() if q["answerable"] and not covered[qid]
@@ -271,7 +322,9 @@ async def cmd_report(a: argparse.Namespace) -> None:
             "chunks": len(recs), "seconds": ingest.get(cfg, {}).get("seconds"), "jev": ing.get("jev"),
             "quarantined": len(quarantined), "quarantined_injections": len(inj_quarantined),
             "injection_chunks_unquarantined": len(inj_stored_clean),
-            "dropped": len(dropped), "dropped_boilerplate_trap_chunks": bp_dropped,
+            "dropped": len(dropped), "boilerplate_traps_dropped": bp_dropped,
+            "boilerplate_traps_left_in_stored_text": bp_in_stored,
+            "injections_quarantined_alone": inj_alone, "paragraph_drops": len(para_drops),
             "dropped_reasons": {k: sum(1 for x in dropped if x.get("reason") == k)
                                 for k in {x.get("reason") for x in dropped}},
             "dropped_examples": [{"reason": x.get("reason"), "text": x.get("text", "")[:140]} for x in dropped[:40]],
@@ -325,7 +378,7 @@ async def cmd_report(a: argparse.Namespace) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("stage", choices=["build", "ingest", "query", "report"])
+    ap.add_argument("stage", choices=["build", "reparse", "ingest", "query", "report"])
     ap.add_argument("--dir", default=".jevrag/bench_messy")
     ap.add_argument("--store", default="pgvector", choices=["pgvector", "qdrant-local"])
     ap.add_argument("--configs", nargs="+", default=list(bw.CONFIGS), choices=list(bw.CONFIGS))
@@ -339,7 +392,7 @@ def main() -> None:
     ap.add_argument("--limit", type=int, default=0)
     a = ap.parse_args()
     load_env_file(".env")
-    asyncio.run({"build": cmd_build, "ingest": cmd_ingest, "query": cmd_query, "report": cmd_report}[a.stage](a))
+    asyncio.run({"build": cmd_build, "reparse": cmd_reparse, "ingest": cmd_ingest, "query": cmd_query, "report": cmd_report}[a.stage](a))
 
 
 if __name__ == "__main__":

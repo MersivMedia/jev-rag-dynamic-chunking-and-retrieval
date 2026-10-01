@@ -139,6 +139,9 @@ def _to_chunks(doc: Document, text: str, units: Sequence[Unit], ranges: List[Tup
     for idx, (s, e) in enumerate(ranges):
         start, end = units[s].start, units[e - 1].end
         body = text[start:end]
+        if not any(ch.isalnum() for ch in body):
+            continue  # only markup (bullets, pipes, rules): nothing to retrieve
+        idx = len(chunks)
         # a chunk that opens with stacked headings belongs to the deepest one: use the first content unit
         first_content = next((u for u in units[s:e] if u.kind != "heading"), units[e - 1])
         path = blocks_paths[first_content.block]

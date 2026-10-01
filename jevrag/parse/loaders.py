@@ -112,6 +112,9 @@ def html_to_markdown(source: str) -> tuple:
     p.close()
     text = "".join(p.out)
     text = re.sub(r"[ \t]+\n", "\n", text)
+    # empty list items and table rows (hidden nav boxes, icon-only links) carry no content
+    text = re.sub(r"(?m)^[ \t]*[-*][ \t]*$\n?", "", text)
+    text = re.sub(r"(?m)^(\|[ \t]*)+\|?[ \t]*$\n?", "", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return html.unescape(p.title.strip()), text.strip()
 
@@ -142,14 +145,12 @@ def load_file(path: str, doc_id: Optional[str] = None, root: Optional[str] = Non
                         format="markdown")
     if ext == ".pdf":
         try:
-            import pymupdf  # type: ignore
+            import pymupdf  # type: ignore  # noqa: F401
         except ImportError as exc:
             raise ImportError('PDF support needs the pdf extra: pip install "jev-rag-dynamic-chunking-and-retrieval[pdf]"') from exc
-        with pymupdf.open(str(p)) as doc:
-            pages = [page.get_text("text") for page in doc]
-            title = (doc.metadata or {}).get("title") or p.stem
-        text = "\n\n".join(pg.strip() for pg in pages if pg.strip())
-        return Document(text=text, doc_id=did, title=title, source_uri=uri, format="text")
+        from .pdf import pdf_to_markdown
+        title, text = pdf_to_markdown(str(p))
+        return Document(text=text, doc_id=did, title=title or p.stem, source_uri=uri, format="markdown")
     if ext == ".docx":
         try:
             import docx  # type: ignore

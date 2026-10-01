@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import difflib
+import functools
 import json
 import os
 import random
@@ -74,12 +75,23 @@ def norm(s: str) -> str:
     return re.sub(r"\s+", " ", s.replace("\u2019", "'").replace("\u2013", "-").replace("\u2014", "-")).strip().lower()
 
 
+@functools.lru_cache(maxsize=200_000)
+def _norm_cached(s: str) -> str:
+    return norm(s)
+
+
 def evidence_in(evidence: str, text: str, ratio: float = 0.8) -> bool:
-    e, t = norm(evidence), norm(text)
+    """True if ``text`` contains the evidence span (one contiguous match >= ratio of its length)."""
+    e, t = _norm_cached(evidence), _norm_cached(text)
     if not e:
         return False
     if e in t:
         return True
+    # cheap filter before the quadratic matcher: a match covering `ratio` of the span must share
+    # most of its words, so skip texts that don't
+    ew = set(e.split())
+    if len(ew & set(t.split())) < ratio * 0.8 * len(ew):
+        return False
     m = difflib.SequenceMatcher(None, e, t, autojunk=False).find_longest_match(0, len(e), 0, len(t))
     return m.size >= ratio * len(e)
 
@@ -265,7 +277,9 @@ async def cmd_query(a: argparse.Namespace) -> None:
             await run_queries(a, qs, cfg, mode)
 
 
-async def run_queries(a: argparse.Namespace, qs: List[Dict[str, Any]], cfg: str, mode: str) -> None:
+async def run_queries(a: argparse.Namespace, qs: List[Dict[str, Any]], cfg: str, mode: str,
+                      collection: Optional[str] = None) -> None:
+    collection = collection or f"bench_{cfg}"
     path = Path(a.dir) / f"runs_{cfg}_{mode}.jsonl"
     done = {json.loads(line)["id"] for line in path.read_text().splitlines()} if path.exists() else set()
     todo = [q for q in qs if q["id"] not in done]
@@ -282,9 +296,9 @@ async def run_queries(a: argparse.Namespace, qs: List[Dict[str, Any]], cfg: str,
             t0 = time.monotonic()
             try:
                 if mode == "vector":
-                    res = await vector_only(rag, q["question"], f"bench_{cfg}")
+                    res = await vector_only(rag, q["question"], collection)
                 else:
-                    res = await rag.aretrieve(q["question"], f"bench_{cfg}")
+                    res = await rag.aretrieve(q["question"], collection)
                 row = {"id": q["id"], "ms": round((time.monotonic() - t0) * 1000, 1),
                        "abstain": res.abstain, "reason": res.reason, "gate_p": res.gate_p,
                        "answerable_p": res.answerable_p, "degraded": res.degraded,

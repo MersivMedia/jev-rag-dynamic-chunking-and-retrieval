@@ -28,3 +28,9 @@ Current limits of the v1.0 development build. Each has a workaround or a milesto
 ## Security
 
 - **Injection screening is one layer.** It caught the planted instruction in every test so far, but it hasn't been measured on a real attack set. Keep treating retrieved text as data in your LLM's system prompt (jevrag's `answer()` does).
+
+## Measured weaknesses (messy-document benchmark)
+
+- **Quarantine is chunk-level.** A planted injection is caught, but the whole chunk around it is quarantined: in testing, 3 of 6 such chunks also held real answers. Workaround: `enrich.quarantine_instructs_ai: 1.01` turns off ingest quarantine; Jev classification still blocked every injection at query time. Fix planned: screen at paragraph level or cut a boundary around instruction-like text.
+- **Short junk paragraphs are merged, not dropped.** Boilerplate shorter than `chunking.min_tokens` (64) is merged into a neighbouring content chunk before enrichment sees it, so it isn't dropped. Lowering `min_tokens` helps at the cost of more small chunks.
+- **Reference lists from raw HTML survive.** Wikipedia "References" sections are kept and can be retrieved; the gate once passed a citation-list chunk (gate 0.88). Strip reference sections before ingest if you can.

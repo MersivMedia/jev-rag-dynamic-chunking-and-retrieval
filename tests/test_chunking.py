@@ -118,7 +118,7 @@ def test_jev_chunking_cuts_at_topic_change(fake_jev):
 
     async def go():
         async with JevClient(JevConfig(cache_dir=None), transport=transport) as jev:
-            return await chunk_document(doc, ChunkConfig(min_tokens=1, target_tokens=30, max_tokens=120), jev=jev,
+            return await chunk_document(doc, ChunkConfig(method="jev", min_tokens=1, target_tokens=30, max_tokens=120), jev=jev,
                                         count=estimate_tokens)
 
     chunks, tr = asyncio.run(go())
@@ -136,7 +136,7 @@ def test_jev_failure_falls_back_to_structural(fake_jev):
 
     async def go():
         async with JevClient(JevConfig(cache_dir=None, max_retries=0), transport=transport) as jev:
-            return await chunk_document(doc, ChunkConfig(), jev=jev, count=estimate_tokens)
+            return await chunk_document(doc, ChunkConfig(method="jev"), jev=jev, count=estimate_tokens)
 
     chunks, tr = asyncio.run(go())
     assert tr.method_used == "structural" and "401" in (tr.fallback_reason or "")
@@ -159,3 +159,17 @@ def test_oversize_sentence_is_split():
 def test_unknown_method():
     with pytest.raises(ValueError):
         asyncio.run(chunk_document(Document(text="x"), ChunkConfig(method="nope")))
+
+
+def test_default_chunker_is_structural_and_makes_no_jev_calls(fake_jev):
+    """Structural is the default (docs/RESULTS.md: Jev chunking tied or lost on every benchmark)."""
+    fj, transport = fake_jev
+    assert ChunkConfig().method == "structural"
+    doc = Document(text=DOC, doc_id="g", title="Guide")
+
+    async def go():
+        async with JevClient(JevConfig(cache_dir=None), transport=transport) as jev:
+            return await chunk_document(doc, ChunkConfig(), jev=jev, count=estimate_tokens)
+
+    chunks, tr = asyncio.run(go())
+    assert chunks and tr.method_used == "structural" and tr.jev_requests == 0 and not tr.fallback_reason

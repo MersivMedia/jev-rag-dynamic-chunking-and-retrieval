@@ -76,8 +76,10 @@ embedder:
 # Chunking
 # ---------------------------------------------------------------------------
 chunking:
-  method: jev                  # jev | structural | fixed | semantic-embedding
-  mode: on                     # on | shadow (log Jev's cuts, store structural) | off
+  method: structural           # structural | jev | fixed | semantic-embedding
+                               # structural matched jev on every benchmark at half the Jev cost;
+                               # see docs/RESULTS.md. Try `jev` on your data with `jevrag inspect --compare`.
+  mode: on                     # jev method only: on | shadow (log Jev's cuts, store structural) | off
   min_tokens: 64               # smaller chunks merge into a neighbour
   target_tokens: 350
   max_tokens: 800              # hard limit

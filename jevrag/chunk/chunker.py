@@ -28,7 +28,9 @@ METHODS = ("jev", "structural", "fixed", "semantic-embedding")
 
 @dataclass
 class ChunkConfig:
-    method: str = "jev"
+    # structural is the default: in every benchmark so far (docs/RESULTS.md) Jev chunking tied or lost to
+    # structural once paragraph screening ran, at about twice the ingest cost. "jev" stays available.
+    method: str = "structural"
     mode: str = "on"  # on | shadow | off  (applies to the Jev method)
     min_tokens: int = 64
     target_tokens: int = 350

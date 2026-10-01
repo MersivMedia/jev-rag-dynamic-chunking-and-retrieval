@@ -2,7 +2,7 @@
 
 Every number in the README comes from this page. Each entry says what was run, how, and what it does **not** show.
 
-**Measured so far:** two benchmarks. One uses long Wikipedia articles ([details](#larger-benchmark-10-long-articles-156-questions)); the other uses messy PDFs, raw web pages and transcripts with planted junk and injections ([details](#messy-documents-pdfs-raw-web-pages-transcripts-planted-traps), rerun with [paragraph-level screening](#paragraph-level-screening-rerun-of-the-messy-benchmark)). Jev retrieval put the answer first far more often and sent 60 to 75% less context. The gate abstained on 40 of 42 and 26 of 29 unanswerable questions. Paragraph-level screening at ingest raised the messy-set hit rate from 93.4% to 96.7% with every chunker. It quarantined all 6 planted injections without hiding any answers, and removed 11 of 12 planted boilerplate paragraphs. Jev chunking did not beat structural or fixed-size chunking in any run. **Not measured yet:** the public sets in milestone M2 of the [PRD](PRD.md) (SciFact, FiQA, QASPER), harder questions, and a cross-encoder re-ranking baseline.
+**Measured so far:** two benchmarks. One uses long Wikipedia articles ([details](#larger-benchmark-10-long-articles-156-questions)); the other uses messy PDFs, raw web pages and transcripts with planted junk and injections ([details](#messy-documents-pdfs-raw-web-pages-transcripts-planted-traps), rerun with [paragraph-level screening](#paragraph-level-screening-rerun-of-the-messy-benchmark)). Jev retrieval put the answer first far more often and sent 60 to 75% less context. The gate abstained on 40 of 42 and 26 of 29 unanswerable questions. Paragraph-level screening at ingest raised the messy-set hit rate from 93.4% to 96.7% with every chunker. It quarantined all 6 planted injections without hiding any answers, and removed 11 of 12 planted boilerplate paragraphs. Jev chunking did not beat structural or fixed-size chunking in any run, so **`structural` is now the default chunker** and Jev chunking is opt-in. **Not measured yet:** the public sets in milestone M2 of the [PRD](PRD.md) (SciFact, FiQA, QASPER), harder questions, and a cross-encoder re-ranking baseline.
 
 All runs: 30 September 2026, Jev through Vercel AI Gateway (`typesafe-ai/jev`, which serves `jev-1.13`), embeddings `openai/text-embedding-3-small` through the same gateway.
 
@@ -252,7 +252,7 @@ Per-request Jev latency in these runs: p50 230 to 380 ms, p90 240 to 470 ms.
 
 | Suite | Result |
 |---|---|
-| Offline unit and integration tests (fake Jev over `httpx.MockTransport`) plus store conformance on memory, Qdrant (embedded), Chroma and the LangChain bridge | 166 passed, 1 skipped (the opt-in live test) on Python 3.12 |
+| Offline unit and integration tests (fake Jev over `httpx.MockTransport`) plus store conformance on memory, Qdrant (embedded), Chroma and the LangChain bridge | 167 passed, 1 skipped (the opt-in live test) on Python 3.12 |
 | Store conformance against Postgres 17.11 + pgvector 0.8.6 (Docker) | 27 passed |
 | Offline tests on Python 3.10 with no extras installed (store tests skip) | passed |
 | Live end-to-end (`tests/test_live.py`) against Jev and OpenAI embeddings via Vercel AI Gateway | passed |

@@ -1,16 +1,16 @@
 # jev-rag-dynamic-chunking-and-retrieval
 
-Jev-steered chunking, ingestion and retrieval for any vector database.
+Jev-steered ingestion and retrieval for any vector database.
 
-**Cut documents where the meaning changes, keep junk and planted instructions out of your index, and send your LLM only the passages that answer the question, on the vector database you already use.**
+**Keep junk and planted instructions out of your index, send your LLM only the passages that answer the question, and refuse when nothing does, on the vector database you already use.**
 
-- **Chunks that follow the text, not a character count.** Jev judges whether each sentence continues the point of the one before it; code places the cuts inside hard token limits. Headings, tables and code blocks are handled in code.
-- **A cleaner index.** Filler and boilerplate are dropped, and text that tries to instruct an AI is quarantined, before anything is embedded. Every chunk can be tagged against your own taxonomy, with probabilities.
-- **Less context, fewer wrong answers.** Each retrieved passage is classified as evidence, a conflict with the question, or noise. A final check abstains when the passages can't answer, before any LLM call.
+- **Less context, fewer wrong answers.** Each retrieved passage is classified as evidence, a conflict with the question, or noise. A final check abstains when the passages can't answer, before any LLM call. Measured: the answer ranked first for 96.5% of questions against 79% for plain vector search, with about 75% less context.
+- **A cleaner index.** Every paragraph is screened before chunking: boilerplate is cut, and text that tries to instruct an AI is quarantined on its own, before anything is embedded. Every chunk can be tagged against your own taxonomy, with probabilities.
+- **Chunking that respects structure.** The default `structural` chunker never crosses a heading and keeps tables and code whole, with no Jev calls. Jev-placed cuts (`method: jev`) are available, but they haven't beaten structural chunking in any benchmark yet ([Results](docs/RESULTS.md#paragraph-level-screening-rerun-of-the-messy-benchmark)).
 - **Your database.** Adapters for Postgres + pgvector, Qdrant and Chroma, plus a bridge to any LangChain vector store, all held to one conformance suite. A Pinecone adapter is included as experimental.
 - **Cheap.** A small end-to-end run cost $0.00024 of Jev to ingest four documents and under $0.0001 per query ([measured](docs/RESULTS.md)). Jev charges $0.042 per million input tokens and nothing for output.
 
-> **Status: v1.0 in development.** The pipeline below is built and tested: 166 offline tests, the store conformance suite against real Postgres + pgvector, and a live end-to-end test against Jev. A first benchmark on 97,000 words of Wikipedia with 156 questions is done: Jev retrieval ranked the evidence first for 96.5% of questions against 79% for plain vector search, sent about 75% less context, and abstained on 40 of 42 unanswerable questions, while Jev chunking did no better than structural chunking. A second benchmark on messy PDFs, raw web pages and transcripts with planted junk and injections found the same pattern. It also found that Jev classification kept every planted injection out of the answer model's context. Screening each paragraph before chunking then raised the hit rate on that set from 93.4% to 96.7%. It quarantined all 6 injections without hiding any real answers, and removed 11 of 12 planted junk paragraphs. See [Results](docs/RESULTS.md) for how it was measured, its limits, and what hasn't been measured yet, and [Known issues](docs/KNOWN_ISSUES.md).
+> **Status: v1.0 in development.** The pipeline below is built and tested: 167 offline tests, the store conformance suite against real Postgres + pgvector, and a live end-to-end test against Jev. A first benchmark on 97,000 words of Wikipedia with 156 questions is done: Jev retrieval ranked the evidence first for 96.5% of questions against 79% for plain vector search, sent about 75% less context, and abstained on 40 of 42 unanswerable questions, while Jev chunking did no better than structural chunking. A second benchmark on messy PDFs, raw web pages and transcripts with planted junk and injections found the same pattern. It also found that Jev classification kept every planted injection out of the answer model's context. Screening each paragraph before chunking then raised the hit rate on that set from 93.4% to 96.7%. It quarantined all 6 injections without hiding any real answers, and removed 11 of 12 planted junk paragraphs. See [Results](docs/RESULTS.md) for how it was measured, its limits, and what hasn't been measured yet, and [Known issues](docs/KNOWN_ISSUES.md).
 
 jevrag uses [Jev](https://docs.typesafe.ai/introduction), TypeSafe AI's System One model. Jev never writes text. It answers typed questions (a yes/no probability, one option from a list, or a score on a scale), and plain code with visible thresholds decides what happens. Every decision is logged with its probabilities.
 
@@ -18,7 +18,7 @@ jevrag uses [Jev](https://docs.typesafe.ai/introduction), TypeSafe AI's System O
 
 | Stage | What Jev decides | What code does |
 |---|---|---|
-| Chunking | Does this sentence continue the point of the previous one? Does it depend on it to make sense? | Places cuts where continuity is lowest, within min/target/max token sizes |
+| Chunking (opt-in, `method: jev`) | Does this sentence continue the point of the previous one? Does it depend on it to make sense? | Places cuts where continuity is lowest, within min/target/max token sizes. The default `structural` chunker asks Jev nothing |
 | Paragraph screen | Is this paragraph boilerplate? Does it contain instructions aimed at an AI? | Cuts it before chunking, or quarantines it alone |
 | Quality screen | Is this chunk filler or boilerplate? Does it contain instructions aimed at an AI? Is it self-contained? | Drops, quarantines or keeps it |
 | Tagging | Which option of each taxonomy field fits, including `other` | Stores the tag only when confident; always stores the probability |
@@ -74,7 +74,7 @@ Then add the key for your embedding provider (`OPENAI_API_KEY`, or reuse `AI_GAT
 
 Put them in a `.env` file: [`.env.example`](.env.example) lists every variable jevrag reads, blank, with a note on each. The `jevrag` CLI loads `./.env` before every command. Variables already set in your shell win, blank lines in the file are ignored, and it warns if the file is readable by other users. Use `--env-file path` for another file or `--no-env-file` to skip it. The Python API doesn't read `.env` on its own; call `jevrag.envfile.load_env_file()` first if you want the same behaviour.
 
-Without a Jev key everything still runs, but chunking falls back to `structural`, nothing is screened or tagged, and retrieval returns plain vector ranking marked `degraded`.
+Without a Jev key everything still runs, but nothing is screened or tagged, and retrieval returns plain vector ranking marked `degraded`.
 
 ## Quickstart
 
@@ -138,8 +138,8 @@ embedder:
   batch_size: 128
 
 chunking:
-  method: jev                  # jev | structural | fixed | semantic-embedding
-  mode: on                     # on | shadow | off
+  method: structural           # structural | jev | fixed | semantic-embedding
+  mode: on                     # jev method only: on | shadow | off
   min_tokens: 64
   target_tokens: 350
   max_tokens: 800
@@ -233,7 +233,9 @@ Cut paragraphs are blanked in a working copy, so chunk offsets still point into 
 
 ### Step 3: Chunk
 
-Within each section, jevrag sends Jev the section text (in windows sized to Jev's request budget) plus two yes/no questions for every adjacent pair of sentences, all in **one request per window**:
+**Default: `structural`.** It cuts at headings and paragraph breaks within `min_tokens`/`target_tokens`/`max_tokens`, merging short pieces. It makes no Jev calls. It's the default because it matched or beat Jev chunking on both benchmarks once paragraph screening ran, at about half the ingest Jev cost ([Results](docs/RESULTS.md#paragraph-level-screening-rerun-of-the-messy-benchmark)). Headings are hard boundaries for every method.
+
+**Jev chunking (`method: jev`).** It may help on long unstructured text, such as transcripts or prose without paragraph breaks; this hasn't been shown yet. Compare on your own documents with `jevrag inspect <file> --compare jev`. Within each section, jevrag sends Jev the section text (in windows sized to Jev's request budget) plus two yes/no questions for every adjacent pair of sentences, all in **one request per window**:
 
 | Question | Wording |
 |---|---|
@@ -257,13 +259,13 @@ See the result before storing anything:
 
 ```bash
 jevrag inspect ./docs/auth.md                     # chunks and sizes
-jevrag inspect ./docs/auth.md -v                  # plus Jev's scores at every candidate cut
-jevrag inspect ./docs/auth.md --compare structural,fixed
+jevrag inspect ./docs/auth.md --compare jev -v     # plus Jev chunking, with its score at every candidate cut
+jevrag inspect ./docs/auth.md --compare jev,fixed
 ```
 
 Each chunk also gets an `embed_text`: the document title and heading path prepended to the chunk, so a chunk that says "They expire after 14 days" still embeds near questions about refresh tokens. `text` (what the LLM sees) is stored separately.
 
-Other methods: `structural` (headings and paragraph breaks, no Jev), `fixed` (about `target_tokens` per chunk, sentence-aligned, with optional `overlap_tokens`), and `semantic-embedding` (cut where adjacent sentence embeddings diverge; one embedding call per sentence). If Jev fails, `jev` falls back to `structural` and the ingest report says so.
+Other methods: `fixed` (about `target_tokens` per chunk, sentence-aligned, with optional `overlap_tokens`), and `semantic-embedding` (cut where adjacent sentence embeddings diverge; one embedding call per sentence). If Jev fails, `jev` falls back to `structural` and the ingest report says so.
 
 ### Step 4: Enrich
 
@@ -525,7 +527,7 @@ class MyStore(VectorStore):
 | `jevrag check` | One Jev call, one embedding, one store round trip |
 | `jevrag ingest <paths...> --collection <name>` | Parse, chunk, enrich, embed, store. `--dry-run`, `--limit N`, `--force`, `-v`, `--json` |
 | `jevrag query "<question>" --collection <name>` | Retrieve. `--where JSON`, `--top-k`, `--no-route`, `--retrieve-only`, `--answer`, `-v`, `--json` |
-| `jevrag inspect <file>` | Show how a file would be chunked. `--compare structural,fixed`, `-v` for cut scores |
+| `jevrag inspect <file>` | Show how a file would be chunked. `--compare jev,fixed`, `-v` for Jev cut scores |
 | `jevrag inspect --collection <name>` | List stored records with tags and scores. `--quarantined` |
 | `jevrag delete --collection <name> --doc <doc_id>` | Delete one document's records |
 

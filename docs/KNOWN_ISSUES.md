@@ -4,7 +4,8 @@ Current limits of the v1.0 development build. Each has a workaround or a milesto
 
 ## Quality
 
-- **Retrieval quality is unbenchmarked.** Nothing yet shows Jev chunking or classification beating cheaper baselines on real datasets (see [Results](RESULTS.md)). Default thresholds are starting points chosen on small probes. Workaround: run with stages in `shadow` mode and compare. Planned: M2.
+- **Only two in-house benchmarks so far.** Jev classification, the gate and paragraph screening clearly helped on both ([Results](RESULTS.md)), but the public sets in M2 haven't been run, the questions were machine-written, and each was a single run. Default thresholds are starting points chosen on small probes. Workaround: run stages in `shadow` mode and compare on your data.
+- **Jev chunking hasn't earned its place.** It tied or lost to `structural` on both benchmarks, at about twice the ingest cost, so `structural` is the default. `method: jev` is kept for long text without structure; test it with `jevrag inspect <file> --compare jev` before using it.
 - **Thresholds are per model version.** A new Jev version can shift probabilities. The default model IDs differ by backend (`jev-1.13.0` on TypeSafe, `typesafe-ai/jev` on Vercel, `typesafe/jev-1.13` on OpenRouter); pin `jev.model` if you need stability.
 - **English first.** TypeSafe documents lower accuracy outside English.
 

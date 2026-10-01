@@ -34,7 +34,7 @@ embedder:
   batch_size: 128
 
 chunking:
-  method: jev                  # jev | structural | fixed | semantic-embedding
+  method: structural           # structural | jev | fixed | semantic-embedding
   mode: on                     # on | shadow | off
   min_tokens: 64
   target_tokens: 350

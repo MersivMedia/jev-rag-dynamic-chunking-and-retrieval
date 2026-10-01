@@ -3,16 +3,18 @@
 Systems (``name`` -> what an LLM would receive):
 
 * ``vector@N``          the vector top N
-* ``jev``               Jev classification at the given thresholds: candidates
-                        routed ``include`` (sorted by evidence score, then vector
-                        score, capped at ``max_passages``), plus conflicts
+* ``jev``               Jev classification with the given ``ClassifyConfig``
+                        (library default: rank mode, top 5): candidates routed
+                        ``include``, sorted by evidence score then vector score,
+                        capped at ``max_passages``, plus conflicts
 * ``jev-rerank@N``      every candidate sorted by Jev's evidence score, top N
                         (classification used as a re-ranker, no dropping)
 * ``llm-rerank@N``      every candidate sorted by the LLM's score, top N
 
 Gate metrics come from the gate scores in the recording: ``vector@N`` uses the
 gate asked about the vector top N (only when N equals the recorded
-``gate_top``), ``jev`` the gate asked about the default-threshold passages.
+``gate_top``); ``jev`` uses the gate recorded for threshold mode (top 8) or
+rank mode (top 5), whichever ``select`` asks for.
 """
 
 from __future__ import annotations
@@ -113,7 +115,7 @@ def tune(rows: Sequence[Mapping[str, Any]], *, qideal: Mapping[str, Mapping[str,
     ``max_recall_drop`` below the vector top-``max_passages`` baseline (or
     ``recall_floor`` when given). Ties go to higher nDCG.
     """
-    base = base or ClassifyConfig()
+    base = base or ClassifyConfig(select="threshold", max_passages=8)  # the grid below tunes threshold mode
     vec = evaluate(rows, [f"vector@{base.max_passages}"], qideal=qideal, k=k)[f"vector@{base.max_passages}"]
     floor = recall_floor if recall_floor is not None else (vec[f"recall@{k}"] or 0.0) - max_recall_drop
     grid = {"min_relevant": [0.2, 0.35, 0.5, 0.65], "min_evidence": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],

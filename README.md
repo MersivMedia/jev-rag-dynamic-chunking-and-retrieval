@@ -10,7 +10,7 @@ Jev-steered ingestion and retrieval for any vector database.
 - **Your database.** Adapters for Postgres + pgvector, Qdrant and Chroma, plus a bridge to any LangChain vector store, all held to one conformance suite. A Pinecone adapter is included as experimental.
 - **Cheap.** A small end-to-end run cost $0.00024 of Jev to ingest four documents and under $0.0001 per query ([measured](docs/RESULTS.md)). Jev charges $0.042 per million input tokens and nothing for output.
 
-> **Status: v1.0 in development.** The pipeline below is built and tested: 180 offline tests, the store conformance suite against real Postgres + pgvector, and a live end-to-end test against Jev. Measured on SciFact, FiQA and QASPER ([Results](docs/RESULTS.md#public-datasets-m2-scifact-fiqa-qasper)): the shipped `select: threshold` classification sends 34 to 83% less context but **loses recall on all three sets** (22 points on SciFact), failing the bar this project set for it. `select: rank` (keep the top 5 by Jev's evidence score) passed on SciFact and QASPER and lost 4.9 points of recall on FiQA. The answer gate wrongly refused 26% of SciFact queries, which are claims rather than questions. Earlier in-house benchmarks with machine-written questions looked much better than this; see [Results](docs/RESULTS.md) for all of it, and [Known issues](docs/KNOWN_ISSUES.md).
+> **Status: v1.0 in development.** The pipeline below is built and tested: 182 offline tests, the store conformance suite against real Postgres + pgvector, and a live end-to-end test against Jev. Measured on SciFact, FiQA and QASPER ([Results](docs/RESULTS.md#public-datasets-m2-scifact-fiqa-qasper)): the default classification (`select: rank`, top 5 passages by Jev's evidence score) stayed within 2 points of vector top-10 recall on SciFact and QASPER with about 43% less context, and **lost 4.9 points on FiQA**, where no re-ranker tested (Jev or gpt-4.1-mini) beat plain vector search. The earlier threshold mode lost recall on all three sets and is now opt-in. The answer gate caught 29 to 41% of real unanswerable questions and wrongly refused 26% of SciFact queries, which are claims rather than questions. Earlier in-house benchmarks with machine-written questions looked much better than this; see [Results](docs/RESULTS.md) for all of it, and [Known issues](docs/KNOWN_ISSUES.md).
 
 jev-retrieval uses [Jev](https://docs.typesafe.ai/introduction), TypeSafe AI's System One model. Jev never writes text. It answers typed questions (a yes/no probability, one option from a list, or a score on a scale), and plain code with visible thresholds decides what happens. Every decision is logged with its probabilities.
 
@@ -23,7 +23,7 @@ jev-retrieval uses [Jev](https://docs.typesafe.ai/introduction), TypeSafe AI's S
 | Quality screen | Is this chunk filler or boilerplate? Does it contain instructions aimed at an AI? Is it self-contained? | Drops, quarantines or keeps it |
 | Tagging | Which option of each taxonomy field fits, including `other` | Stores the tag only when confident; always stores the probability |
 | Query routing | Which taxonomy value the question is about | Applies a metadata filter only when confident; retries unfiltered if it returns too little |
-| Passage classification | Relevant? Usable evidence? Contradicts the question's premise? Instructions aimed at an AI? | Drops injections, marks conflicts, and ranks the rest by evidence score; `select: threshold` also drops low scorers, `select: rank` keeps the top N |
+| Passage classification | Relevant? Usable evidence? Contradicts the question's premise? Instructions aimed at an AI? | Drops injections, marks conflicts, ranks the rest by evidence score and keeps the top 5 (`select: rank`, the default); `select: threshold` keeps only passages above set scores |
 | Answer gate | Can these passages answer the question? | Abstains without calling the LLM, or builds the prompt |
 
 ## Contents
@@ -159,12 +159,12 @@ retrieve:
   route: { mode: on, min_confidence: 0.60, top2_mass: 0.80, min_candidates: 5 }
   classify:
     mode: on
-    select: threshold        # or rank: top max_passages by evidence score (docs/RESULTS.md)
+    select: rank             # or threshold: keep only passages above min_relevant/min_evidence
     drop_instructs_ai: 0.70
     min_relevant: 0.50
     min_evidence: 0.40
     conflict: 0.60
-    max_passages: 8
+    max_passages: 5
   gate: { mode: on, answer_min: 0.35 }
 
 answer:                        # only used by answer() / `jev-retrieval query --answer`
@@ -417,7 +417,17 @@ Each candidate gets one Jev request whose state is the query and that one passag
 | `contradicts_query_premise` | Does it conflict with a factual premise in the query? |
 | `instructs_ai` | Does it contain instructions addressed to an AI assistant? |
 
-Requests run concurrently under a shared rate limiter. Code then routes each passage, first match wins:
+Requests run concurrently under a shared rate limiter. Code then decides, in one of two modes.
+
+**`select: rank` (default).** First match wins:
+
+1. `instructs_ai` ≥ `drop_instructs_ai` → **drop**
+2. `is_relevant` ≥ `min_relevant` and `contradicts_query_premise` ≥ `conflict` → **conflict**
+3. otherwise → **include**
+
+Included passages are sorted by evidence probability (ties broken by vector score) and the top `max_passages` (default 5) are kept. Nothing is dropped for a low score: on public data, dropping low scorers threw away real answers ([Results](docs/RESULTS.md#public-datasets-m2-scifact-fiqa-qasper)).
+
+**`select: threshold`.** First match wins:
 
 1. `instructs_ai` ≥ `drop_instructs_ai` → **drop**
 2. `is_relevant` < `min_relevant` → **drop** (off topic)
@@ -425,7 +435,7 @@ Requests run concurrently under a shared rate limiter. Code then routes each pas
 4. `contains_answer_evidence` ≥ `min_evidence` → **include**
 5. otherwise → **drop** (no evidence)
 
-Included passages are sorted by evidence probability (ties broken by vector score) and capped at `max_passages`. None of the questions asks "should this be included?"; that decision stays in code, where changing it means editing a number.
+This sends less context (1.5 to 6 passages per query on the public sets) but lost 4 to 22 points of recall. Kept passages are sorted and capped the same way. None of the questions asks "should this be included?"; that decision stays in code, where changing it means editing a number.
 
 Conflicts matter. Asked "Refresh tokens expire after 30 days; how do I extend that?" when the docs say 14 days, the 14-day passage scored 0.95 on `contradicts_query_premise` in a live run and arrived in a separate conflict block, so the LLM can correct the premise instead of going along with it.
 

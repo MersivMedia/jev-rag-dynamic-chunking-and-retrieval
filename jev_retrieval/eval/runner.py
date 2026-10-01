@@ -37,8 +37,10 @@ from ..stores.filters import parse
 from . import EvalQuery, EvalSet, units_for
 from .llm_rerank import LLMReranker
 
-DEFAULT_CLASSIFY = ClassifyConfig()
-RANK_CLASSIFY = ClassifyConfig(select="rank", max_passages=5)
+# The two passage sets the gate is recorded on. Pinned explicitly so recordings
+# keep their meaning when library defaults change.
+DEFAULT_CLASSIFY = ClassifyConfig(select="threshold", max_passages=8)  # gate.jev_default
+RANK_CLASSIFY = ClassifyConfig(select="rank", max_passages=5)         # gate.jev_rank
 
 
 @dataclass

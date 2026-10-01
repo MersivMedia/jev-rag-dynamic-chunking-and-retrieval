@@ -49,21 +49,25 @@ class RouteConfig:
 class ClassifyConfig:
     """How Jev's passage scores pick what the LLM sees.
 
+    ``select="rank"`` (default): order every candidate by its evidence score
+    and keep the top ``max_passages``; only injections (``drop_instructs_ai``)
+    are dropped. Chosen on the M2 public sets (RESULTS.md): within 2 points of
+    vector top-10 recall on SciFact and QASPER with ~43% less context; lost
+    4.9 points on FiQA.
     ``select="threshold"``: keep passages above ``min_relevant`` and
-    ``min_evidence``, up to ``max_passages``. Returns few passages, and on the
-    M2 public sets lost recall (RESULTS.md).
-    ``select="rank"``: order every candidate by its evidence score and keep the
-    top ``max_passages``; only injections (``drop_instructs_ai``) are dropped.
+    ``min_evidence``, up to ``max_passages``. Sends less context but lost 4 to
+    22 points of recall on the same sets; set ``max_passages: 8`` to match the
+    pre-1.0 behaviour.
     Conflicts are routed the same way in both modes.
     """
 
     mode: str = "on"
-    select: str = "threshold"  # threshold | rank
+    select: str = "rank"  # rank | threshold
     drop_instructs_ai: float = 0.70
     min_relevant: float = 0.50
     min_evidence: float = 0.40
     conflict: float = 0.60
-    max_passages: int = 8
+    max_passages: int = 5
     max_passage_chars: int = 6000
 
     def __post_init__(self) -> None:

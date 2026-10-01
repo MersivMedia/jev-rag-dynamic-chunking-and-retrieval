@@ -107,10 +107,29 @@ def test_conflict_block(fake_jev):
 
 
 def test_abstains_off_topic(fake_jev):
+    """Default rank mode keeps the top passages; the gate is what abstains (no LLM call)."""
     rag = make(fake_jev)
     rag.ingest(DOCS, collection="kb")
     r = rag.retrieve("What is the capital of France?", collection="kb")
+    assert r.abstain and r.filter_used is None
+    assert r.gate_p is not None and r.gate_p < rag.retrieve_cfg.gate.answer_min
+    assert len(r.passages) <= rag.retrieve_cfg.classify.max_passages
+    assert rag.answer("What is the capital of France?", collection="kb").abstained
+
+
+def test_abstains_off_topic_threshold_mode_keeps_nothing(fake_jev):
+    """select: threshold drops every off-topic passage, so it abstains with nothing kept."""
+    rag = make(fake_jev)
+    rag.ingest(DOCS, collection="kb")
+    rag.retrieve_cfg.classify = ClassifyConfig(select="threshold", max_passages=8)
+    r = rag.retrieve("What is the capital of France?", collection="kb")
     assert r.abstain and r.filter_used is None and not r.passages
+
+
+def test_default_classification_is_rank_top5():
+    """Chosen on the M2 public sets (docs/RESULTS.md)."""
+    cfg = ClassifyConfig()
+    assert cfg.select == "rank" and cfg.max_passages == 5
 
 
 def test_quarantined_never_retrieved(fake_jev):
@@ -149,12 +168,16 @@ def test_shadow_classification_keeps_vector_order(fake_jev):
 
 
 def test_route_passage_order():
-    cfg = ClassifyConfig()
+    cfg = ClassifyConfig(select="threshold")
     assert route_passage({"instructs_ai": 0.9, "is_relevant": 1, "contains_answer_evidence": 1}, cfg) == "drop:instructs_ai"
     assert route_passage({"is_relevant": 0.9, "contradicts_query_premise": 0.8, "contains_answer_evidence": 0.9}, cfg) == "conflict"
     assert route_passage({"is_relevant": 0.9, "contains_answer_evidence": 0.9}, cfg) == "include"
     assert route_passage({"is_relevant": 0.9, "contains_answer_evidence": 0.1}, cfg) == "drop:no_evidence"
     assert route_passage({"is_relevant": 0.1, "contains_answer_evidence": 0.9}, cfg) == "drop:off_topic"
+    rank = ClassifyConfig(select="rank")
+    assert route_passage({"instructs_ai": 0.9, "is_relevant": 1, "contains_answer_evidence": 1}, rank) == "drop:instructs_ai"
+    assert route_passage({"is_relevant": 0.9, "contradicts_query_premise": 0.8}, rank) == "conflict"
+    assert route_passage({"is_relevant": 0.1, "contains_answer_evidence": 0.1}, rank) == "include"  # ranked, not dropped
 
 
 def test_dry_run_makes_no_calls(fake_jev):

@@ -123,13 +123,14 @@ retrieve:
     min_candidates: 5          # retry unfiltered if the filter returns fewer hits
   classify:                    # four questions per candidate passage
     mode: on
-    select: threshold          # threshold: keep passages above min_relevant/min_evidence
-                               # rank: keep the top max_passages by evidence score (see docs/RESULTS.md)
+    select: rank               # rank: keep the top max_passages by evidence score
+                               # threshold: keep only passages above min_relevant and min_evidence
+                               # (less context, lower recall; see docs/RESULTS.md)
     drop_instructs_ai: 0.70
-    min_relevant: 0.50
-    min_evidence: 0.40
+    min_relevant: 0.50         # threshold mode; in rank mode only gates the conflict block
+    min_evidence: 0.40         # threshold mode only
     conflict: 0.60             # contradicts the query's premise -> conflict block
-    max_passages: 8
+    max_passages: 5
     max_passage_chars: 6000
   gate:                        # can the kept passages answer the question?
     mode: on

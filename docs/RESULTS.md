@@ -2,7 +2,7 @@
 
 Every number in the README comes from this page. Each entry says what was run, how, and what it does **not** show.
 
-**Measured so far:** three public datasets with human labels ([details](#public-datasets-m2-scifact-fiqa-qasper)) and two in-house benchmarks. On the public sets the shipped classification default sent far less context but **lost recall on all three** (22 points on SciFact), so it fails the PRD bar. Ranking by Jev's evidence score instead matched or beat a gpt-4.1-mini re-ranker on every set at a quarter to a third of the cost, and a preregistered rank setting passed the bar on two of three sets. The gate refused 29 to 41% of real unanswerable questions, against 40 of 42 synthetic ones, and wrongly refused 26% of SciFact claims. The in-house benchmarks ([long articles](#larger-benchmark-10-long-articles-156-questions), [messy documents](#messy-documents-pdfs-raw-web-pages-transcripts-planted-traps), [paragraph screening](#paragraph-level-screening-rerun-of-the-messy-benchmark)) used machine-written questions and looked much better than the public sets; read them with that in mind. Jev chunking has not beaten structural chunking in any run, so **`structural` is the default chunker**. **Not measured yet:** a cross-encoder re-ranking baseline, repeated runs, and non-English text.
+**Measured so far:** three public datasets with human labels ([details](#public-datasets-m2-scifact-fiqa-qasper)) and two in-house benchmarks. On the public sets the classification default at the time (threshold mode) sent far less context but **lost recall on all three** (22 points on SciFact), so it fails the PRD bar. Ranking by Jev's evidence score instead matched or beat a gpt-4.1-mini re-ranker on every set at a quarter to a third of the cost, and a preregistered rank setting passed the bar on two of three sets and is now the default. The gate refused 29 to 41% of real unanswerable questions, against 40 of 42 synthetic ones, and wrongly refused 26% of SciFact claims. The in-house benchmarks ([long articles](#larger-benchmark-10-long-articles-156-questions), [messy documents](#messy-documents-pdfs-raw-web-pages-transcripts-planted-traps), [paragraph screening](#paragraph-level-screening-rerun-of-the-messy-benchmark)) used machine-written questions and looked much better than the public sets; read them with that in mind. Jev chunking has not beaten structural chunking in any run, so **`structural` is the default chunker**. **Not measured yet:** a cross-encoder re-ranking baseline, repeated runs, and non-English text.
 
 Runs: 30 September to 1 October 2026, Jev through Vercel AI Gateway (`typesafe-ai/jev`, which serves `jev-1.13`), embeddings `openai/text-embedding-3-small` through the same gateway.
 
@@ -10,7 +10,7 @@ Runs: 30 September to 1 October 2026, Jev through Vercel AI Gateway (`typesafe-a
 
 Run 1 October 2026 with the new `jev-retrieval eval` command. Code: [`jev_retrieval/eval/`](../jev_retrieval/eval/), [`scripts/prepare_eval.py`](../scripts/prepare_eval.py), [`scripts/eval_m2.py`](../scripts/eval_m2.py); every number below is in [`m2_results.json`](m2_results.json).
 
-**Summary.** On public data with human-written labels, the shipped classification default **failed the PRD bar on all three sets**: it sent much less context but lost recall, by 22 points on SciFact. Ranking by Jev's evidence score instead of thresholding fixes most of that: as a re-ranker, Jev matched or beat a gpt-4.1-mini re-ranker on every set at a quarter to a third of the cost. A preregistered rank-mode setting (`select: rank`, top 5) passed the bar on SciFact and QASPER and failed on FiQA. The answerability gate refused far fewer real unanswerable questions (29 to 41%) than synthetic ones (95%), and wrongly refused 26% of SciFact queries, which are claims rather than questions. Jev chunking tied structural chunking on QASPER, the only one of the three sets with documents long enough to chunk.
+**Summary.** On public data with human-written labels, the classification default at the time (`select: threshold`) **failed the PRD bar on all three sets**: it sent much less context but lost recall, by 22 points on SciFact. Ranking by Jev's evidence score instead of thresholding fixes most of that: as a re-ranker, Jev matched or beat a gpt-4.1-mini re-ranker on every set at a quarter to a third of the cost. A preregistered rank-mode setting (`select: rank`, top 5) passed the bar on SciFact and QASPER and failed on FiQA; **it is now the default**. The answerability gate refused far fewer real unanswerable questions (29 to 41%) than synthetic ones (95%), and wrongly refused 26% of SciFact queries, which are claims rather than questions. Jev chunking tied structural chunking on QASPER, the only one of the three sets with documents long enough to chunk.
 
 ### Setup
 
@@ -30,8 +30,8 @@ Pipeline: structural chunking, `openai/text-embedding-3-small`, pgvector, Jev th
 |---|---|---|---|---|---|
 | Vector search, top 10 | 85.4% | 0.716 | 59.3% | 10.0 | 2,852 |
 | Vector search, top 8 | 83.9% | 0.712 | 59.3% | 8.0 | 2,278 |
-| Jev classification, shipped default (`select: threshold`) | 63.5% | 0.606 | 57.7% | 1.5 | 479 |
-| Jev classification, `select: rank`, top 5 (preregistered) | 84.8% | 0.654 | 51.7% | 5.5 | 1,598 |
+| Jev classification, `select: threshold`, top 8 (default before 1 October) | 63.5% | 0.606 | 57.7% | 1.5 | 479 |
+| Jev classification, `select: rank`, top 5 (preregistered; now the default) | 84.8% | 0.654 | 51.7% | 5.5 | 1,598 |
 | Jev evidence score as a re-ranker, top 8 | 87.9% | 0.787 | 70.3% | 8.0 | 2,271 |
 | gpt-4.1-mini re-ranker, top 8 | 84.9% | 0.755 | 65.7% | 8.0 | 2,292 |
 
@@ -41,8 +41,8 @@ Pipeline: structural chunking, `openai/text-embedding-3-small`, pgvector, Jev th
 |---|---|---|---|---|---|
 | Vector search, top 10 | 69.8% | 0.622 | 61.0% | 10.0 | 2,461 |
 | Vector search, top 8 | 66.7% | 0.608 | 61.0% | 8.0 | 1,968 |
-| Jev classification, shipped default (`select: threshold`) | 66.1% | 0.600 | 58.0% | 6.3 | 1,634 |
-| Jev classification, `select: rank`, top 5 (preregistered) | 65.0% | 0.596 | 58.0% | 5.1 | 1,289 |
+| Jev classification, `select: threshold`, top 8 (default before 1 October) | 66.1% | 0.600 | 58.0% | 6.3 | 1,634 |
+| Jev classification, `select: rank`, top 5 (preregistered; now the default) | 65.0% | 0.596 | 58.0% | 5.1 | 1,289 |
 | Jev evidence score as a re-ranker, top 8 | 69.8% | 0.619 | 58.0% | 8.0 | 2,011 |
 | gpt-4.1-mini re-ranker, top 8 | 70.3% | 0.623 | 59.7% | 8.0 | 2,120 |
 
@@ -52,8 +52,8 @@ Pipeline: structural chunking, `openai/text-embedding-3-small`, pgvector, Jev th
 |---|---|---|---|---|---|
 | Vector search, top 10 | 93.2% | 0.715 | 52.8% | 9.8 | 2,552 |
 | Vector search, top 8 | 89.5% | 0.703 | 52.8% | 7.9 | 2,081 |
-| Jev classification, shipped default (`select: threshold`) | 87.7% | 0.782 | 64.8% | 4.1 | 1,188 |
-| Jev classification, `select: rank`, top 5 (preregistered) | 91.4% | 0.810 | 66.3% | 5.0 | 1,450 |
+| Jev classification, `select: threshold`, top 8 (default before 1 October) | 87.7% | 0.782 | 64.8% | 4.1 | 1,188 |
+| Jev classification, `select: rank`, top 5 (preregistered; now the default) | 91.4% | 0.810 | 66.3% | 5.0 | 1,450 |
 | Jev evidence score as a re-ranker, top 8 | 95.7% | 0.828 | 66.3% | 7.9 | 2,220 |
 | gpt-4.1-mini re-ranker, top 8 | 94.8% | 0.804 | 65.3% | 7.9 | 2,158 |
 
@@ -61,7 +61,7 @@ Pipeline: structural chunking, `openai/text-embedding-3-small`, pgvector, Jev th
 
 The bar for turning classification on by default: at least 40% fewer context tokens than vector top 10, with recall@10 no more than 2 points lower.
 
-| Set | Shipped default (threshold) | `select: rank`, top 5 | Threshold tuned on dev |
+| Set | `select: threshold` (old default) | `select: rank`, top 5 (new default) | Threshold tuned on dev |
 |---|---|---|---|
 | SciFact | fail: tokens −83%, recall -21.9 pts | pass: tokens −44%, recall -0.6 pts | no setting met the recall floor on dev |
 | FiQA | fail: tokens −34%, recall -3.7 pts | fail: tokens −48%, recall -4.9 pts | fail: tokens −53%, recall -7.4 pts |
@@ -71,7 +71,7 @@ Paired bootstrap, rank mode minus vector top 10: SciFact recall -0.6 points (95%
 
 ### What the numbers say
 
-- **Thresholding throws away answers.** The shipped default keeps a passage only when Jev scores it relevant (0.5) and usable as evidence (0.4). On SciFact it kept 1.5 passages per claim and lost 22 points of recall. Tuning the thresholds on dev didn't fix it on any set.
+- **Thresholding throws away answers.** Threshold mode keeps a passage only when Jev scores it relevant (0.5) and usable as evidence (0.4). On SciFact it kept 1.5 passages per claim and lost 22 points of recall. Tuning the thresholds on dev didn't fix it on any set.
 - **Jev ranks well.** Used as a re-ranker over the same 30 candidates, Jev's evidence score beat gpt-4.1-mini on SciFact (nDCG +3.2 points; 95% interval +0.9 to +5.5), was level on QASPER (+2.3 points; 95% interval -1.0 to +5.5) and on FiQA (-0.3 points; 95% interval -2.5 to +1.9). On QASPER it put the evidence first for 66.3% of questions against 52.8% for vector search.
 - **FiQA is hard for every re-ranker.** Neither Jev nor gpt-4.1-mini improved on vector search there (top-8 recall 69.8% for Jev and 70.3% for gpt-4.1-mini, against 69.8% for vector top 10), so any setting that sends fewer passages loses recall. FiQA questions average 2.6 relevant posts, so returning fewer passages costs recall directly.
 - **SciFact conflicts.** Many SciFact claims are refuted by their gold abstract, so Jev routes that abstract to the conflict block, which still reaches the LLM but after the evidence. In 65 of rank mode's 145 first-place misses the gold abstract was in the conflict block. Arguably correct behaviour, but it costs rank-based metrics.
@@ -99,6 +99,7 @@ Jev per query covers one classification per candidate (30 on SciFact and FiQA; f
 - Only one baseline re-ranker (gpt-4.1-mini); no cross-encoder such as a BGE or Cohere re-ranker yet.
 - The gate was recorded for three passage sets; tuned classification thresholds report the gate of the default set.
 - Relevance labels are incomplete, as in all BEIR sets: a system can be marked wrong for returning an unlabelled relevant document.
+- Recall@10 counts the first 10 passages a system sends. Conflicts are sent after the kept passages, so a list longer than 10 has its conflicts cut off by the metric. This changes the defaults' recall by at most 0.13 points (a handful of queries have more than 10 passages), but it makes larger settings look worse than they are: rank mode with `max_passages: 10` scores 68.2% recall@10 on SciFact while 89.4% of the evidence is in what it sends.
 
 ### Reproduce
 
@@ -357,7 +358,7 @@ Per-request Jev latency in these runs: p50 230 to 380 ms, p90 240 to 470 ms.
 
 | Suite | Result |
 |---|---|
-| Offline unit and integration tests (fake Jev over `httpx.MockTransport`) plus store conformance on memory, Qdrant (embedded), Chroma and the LangChain bridge | 179 passed, 1 skipped (the opt-in live test) on Python 3.12 |
+| Offline unit and integration tests (fake Jev over `httpx.MockTransport`) plus store conformance on memory, Qdrant (embedded), Chroma and the LangChain bridge | 181 passed, 1 skipped (the opt-in live test) on Python 3.12 |
 | Store conformance against Postgres 17.11 + pgvector 0.8.6 (Docker) | 27 passed |
 | Offline tests on Python 3.10 with no extras installed (store tests skip) | passed |
 | Live end-to-end (`tests/test_live.py`) against Jev and OpenAI embeddings via Vercel AI Gateway | passed |

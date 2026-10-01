@@ -55,11 +55,12 @@ retrieve:
   route: {{ mode: on, min_confidence: 0.60, top2_mass: 0.80, min_candidates: 5 }}
   classify:
     mode: on
+    select: rank
     drop_instructs_ai: 0.70
     min_relevant: 0.50
     min_evidence: 0.40
     conflict: 0.60
-    max_passages: 8
+    max_passages: 5
   gate: {{ mode: on, answer_min: 0.35 }}
 
 answer:                        # only used by answer() / `jev-retrieval query --answer`

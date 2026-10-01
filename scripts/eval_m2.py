@@ -25,6 +25,7 @@ from jev_retrieval.eval.systems import bootstrap_delta, evaluate, tune, tune_gat
 from jev_retrieval.retrieve import ClassifyConfig  # noqa: E402
 
 DATA = Path(".jev-retrieval/eval_data/prepared")
+THRESHOLD = ClassifyConfig(select="threshold", max_passages=8)  # the pre-1.0 default, as measured in M2
 SYSTEMS = ["vector@8", "vector@10", "jev", "jev-rerank@8", "llm-rerank@8"]
 K = 10
 
@@ -61,19 +62,19 @@ def main() -> None:
             continue
         r = {"dev_rows": len(dev), "test_rows": len(test), "level": ds.level}
         print(f"\n## {name}: dev {len(dev)}, test {len(test)} ({ds.level} level)")
-        base = evaluate(test, SYSTEMS, qideal=qideal, k=K)
+        base = evaluate(test, SYSTEMS, qideal=qideal, cfg=THRESHOLD, k=K)
         r["test_default"] = base
         for s, m in base.items():
             print(f"  {s:<14} {fmt(m, keys)}")
-        t = tune(dev, qideal=qideal, k=K, base=ClassifyConfig()) if dev else {"best": None}
+        t = tune(dev, qideal=qideal, k=K, base=THRESHOLD) if dev else {"best": None}
         r["tuned_on_dev"] = {k: v for k, v in t.items() if k != "tried"}
         if t.get("best"):
-            cfg = replace(ClassifyConfig(), **t["best"]["config"])
+            cfg = replace(THRESHOLD, **t["best"]["config"])
             tuned = evaluate(test, ["jev"], qideal=qideal, cfg=cfg, k=K)["jev"]
             r["test_tuned"] = {"config": t["best"]["config"], "metrics": tuned}
             print(f"  jev (tuned on dev: {t['best']['config']}) {fmt(tuned, keys)}")
         else:
-            cfg = ClassifyConfig()
+            cfg = THRESHOLD
             print("  tuning: no threshold set met the recall floor on dev")
         # preregistered rank mode (docs/m2_preregistration.json), unchanged
         rank_cfg = ClassifyConfig(select="rank", max_passages=5)
@@ -106,7 +107,7 @@ def main() -> None:
             r["gate_tuned_on_dev"] = g["best"]
             if g["best"]:
                 th = g["best"]["threshold"]
-                tg = evaluate(test, ["jev"], qideal=qideal, gate_min=th, k=K)["jev"]
+                tg = evaluate(test, ["jev"], qideal=qideal, cfg=THRESHOLD, gate_min=th, k=K)["jev"]
                 r["gate_test"] = {"threshold": th, "false_abstain": tg.get("false_abstain"), "true_abstain": tg.get("true_abstain")}
                 print(f"  gate tuned on dev: threshold {th} -> test false_abstain {tg.get('false_abstain')}, "
                       f"true_abstain {tg.get('true_abstain')} (default 0.35: {base['jev'].get('false_abstain')}, "
@@ -141,7 +142,7 @@ def main() -> None:
         if not (out / f"record_{coll}.jsonl").exists():
             continue
         dev, test, qideal, _ = split_rows(name, out, coll)
-        m = evaluate(test, ["vector@8", "vector@10", "jev"], qideal=qideal, k=K)
+        m = evaluate(test, ["vector@8", "vector@10", "jev"], qideal=qideal, cfg=THRESHOLD, k=K)
         report.setdefault("chunker", {})[coll] = m
         print(f"\n## chunker: {coll} (test {len(test)})")
         for s, v in m.items():

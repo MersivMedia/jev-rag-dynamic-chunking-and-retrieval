@@ -166,7 +166,7 @@ def test_record_then_evaluate_offline(fake_jev, tmp_path, monkeypatch):
 
 
 def test_jev_system_matches_route_passage():
-    cfg = ClassifyConfig()
+    cfg = ClassifyConfig(select="threshold", max_passages=8)
     row = {"id": "x", "answerable": True, "gate_top": 8, "gate": {"vector_top": 0.9, "jev_default": 0.8},
            "cands": [
                {"id": "a", "doc_id": "a", "vs": 0.9, "tokens": 10, "units": {},
@@ -213,7 +213,7 @@ def test_rank_mode_keeps_top_by_evidence_and_drops_only_injections():
     row = {"id": "x", "answerable": True, "gate_top": 8, "gate": {"jev_rank": 0.9},
            "cands": [c("weak", 0.1, 0.05, vs=0.9), c("inj", 0.9, 0.99, inj=0.95), c("good", 0.3, 0.6), c("mid", 0.2, 0.3)]}
     # threshold mode would drop "good" (relevance 0.3 < 0.5); rank mode keeps it first
-    assert route_passage(row["cands"][2]["jev"], ClassifyConfig()) == "drop:off_topic"
+    assert route_passage(row["cands"][2]["jev"], ClassifyConfig(select="threshold")) == "drop:off_topic"
     rep = evaluate([row], ["jev"], qideal={"x": {"good": 1}}, cfg=cfg)["jev"]
     assert rep["hit@1"] == 1.0 and rep["passages_mean"] == 2.0 and rep["false_abstain"] == 0.0
     with pytest.raises(ValueError):

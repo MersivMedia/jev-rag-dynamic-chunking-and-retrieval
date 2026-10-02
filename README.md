@@ -4,13 +4,13 @@ Jev-steered ingestion and retrieval for any vector database.
 
 **Keep junk and planted instructions out of your index, send your LLM only the passages that answer the question, and refuse when nothing does, on the vector database you already use.**
 
-- **A better order for the passages you already retrieve.** Jev scores every retrieved passage as evidence, a conflict with the question, or noise. On three public datasets with human labels, ranking by Jev's evidence score matched or beat a gpt-4.1-mini re-ranker on every set at a quarter to a third of the cost, and on QASPER put the evidence first for 66% of questions against 53% for vector search ([Results](docs/RESULTS.md#public-datasets-m2-scifact-fiqa-qasper)). A final check can abstain before any LLM call when the passages can't answer; on real unanswerable questions it caught 29 to 41% ([Results]({R})).
+- **A better order for the passages you already retrieve.** Jev scores every retrieved passage as evidence, a conflict with the question, or noise. On three public datasets with human labels, ranking by Jev's evidence score matched or beat a gpt-4.1-mini re-ranker on every set at a quarter to a third of the cost, and on QASPER put the evidence first for 66% of questions against 53% for vector search ([Results](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/docs/RESULTS.md#public-datasets-m2-scifact-fiqa-qasper)). A final check can abstain before any LLM call when the passages can't answer; on real unanswerable questions it caught 29 to 41% ([Results](https://github.com/MersivMedia/jev-rag-retrieval/tree/main/{R})).
 - **A cleaner index.** Every paragraph is screened before chunking: boilerplate is cut, and text that tries to instruct an AI is quarantined on its own, before anything is embedded. Every chunk can be tagged against your own taxonomy, with probabilities.
-- **Chunking that respects structure.** The default `structural` chunker never crosses a heading and keeps tables and code whole, with no Jev calls. Jev-placed cuts (`method: jev`) are available, but they haven't beaten structural chunking in any benchmark yet ([Results](docs/RESULTS.md#paragraph-level-screening-rerun-of-the-messy-benchmark)).
+- **Chunking that respects structure.** The default `structural` chunker never crosses a heading and keeps tables and code whole, with no Jev calls. Jev-placed cuts (`method: jev`) are available, but they haven't beaten structural chunking in any benchmark yet ([Results](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/docs/RESULTS.md#paragraph-level-screening-rerun-of-the-messy-benchmark)).
 - **Your database.** Adapters for Postgres + pgvector, Qdrant and Chroma, plus a bridge to any LangChain vector store, all held to one conformance suite. A Pinecone adapter is included as experimental.
-- **Cheap.** A small end-to-end run cost $0.00024 of Jev to ingest four documents and under $0.0001 per query ([measured](docs/RESULTS.md)). Jev charges $0.042 per million input tokens and nothing for output.
+- **Cheap.** A small end-to-end run cost $0.00024 of Jev to ingest four documents and under $0.0001 per query ([measured](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/docs/RESULTS.md)). Jev charges $0.042 per million input tokens and nothing for output.
 
-> **Status: v1.0 in development.** The pipeline below is built and tested: 182 offline tests, the store conformance suite against real Postgres + pgvector, and a live end-to-end test against Jev. Measured on SciFact, FiQA and QASPER ([Results](docs/RESULTS.md#public-datasets-m2-scifact-fiqa-qasper)): the default classification (`select: rank`, top 5 passages by Jev's evidence score) stayed within 2 points of vector top-10 recall on SciFact and QASPER with about 43% less context, and **lost 4.9 points on FiQA**, where no re-ranker tested (Jev or gpt-4.1-mini) beat plain vector search. The earlier threshold mode lost recall on all three sets and is now opt-in. The answer gate caught 29 to 41% of real unanswerable questions and wrongly refused 26% of SciFact queries, which are claims rather than questions. Earlier in-house benchmarks with machine-written questions looked much better than this; see [Results](docs/RESULTS.md) for all of it, and [Known issues](docs/KNOWN_ISSUES.md).
+> **Status: v1.0 in development.** The pipeline below is built and tested: 182 offline tests, the store conformance suite against real Postgres + pgvector, and a live end-to-end test against Jev. Measured on SciFact, FiQA and QASPER ([Results](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/docs/RESULTS.md#public-datasets-m2-scifact-fiqa-qasper)): the default classification (`select: rank`, top 5 passages by Jev's evidence score) stayed within 2 points of vector top-10 recall on SciFact and QASPER with about 43% less context, and **lost 4.9 points on FiQA**, where no re-ranker tested (Jev or gpt-4.1-mini) beat plain vector search. The earlier threshold mode lost recall on all three sets and is now opt-in. The answer gate caught 29 to 41% of real unanswerable questions and wrongly refused 26% of SciFact queries, which are claims rather than questions. Earlier in-house benchmarks with machine-written questions looked much better than this; see [Results](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/docs/RESULTS.md) for all of it, and [Known issues](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/docs/KNOWN_ISSUES.md).
 
 jev-retrieval uses [Jev](https://docs.typesafe.ai/introduction), TypeSafe AI's System One model. Jev never writes text. It answers typed questions (a yes/no probability, one option from a list, or a score on a scale), and plain code with visible thresholds decides what happens. Every decision is logged with its probabilities.
 
@@ -44,10 +44,10 @@ jev-retrieval uses [Jev](https://docs.typesafe.ai/introduction), TypeSafe AI's S
 
 Python 3.10 to 3.13. The package installs as `jev-rag-retrieval`; you import it as `jev_retrieval` and run it as the `jev-retrieval` command. The core needs only `httpx`, `pydantic` and `pyyaml`; each database, embedder and file format is an extra.
 
-Until the first PyPI release, install from GitHub:
+Install from PyPI (add the extras for your database and embedder):
 
 ```bash
-pip install "jev-rag-retrieval[qdrant] @ git+https://github.com/MersivMedia/jev-rag-retrieval"
+pip install "jev-rag-retrieval[qdrant]"
 ```
 
 | Extra | Installs |
@@ -72,7 +72,7 @@ Set one Jev key. jev-retrieval uses the first one it finds, in this order:
 
 Then add the key for your embedding provider (`OPENAI_API_KEY`, or reuse `AI_GATEWAY_API_KEY` with the `gateway:` embedder) and your database's connection settings.
 
-Put them in a `.env` file: [`.env.example`](.env.example) lists every variable jev-retrieval reads, blank, with a note on each. The `jev-retrieval` CLI loads `./.env` before every command. Variables already set in your shell win, blank lines in the file are ignored, and it warns if the file is readable by other users. Use `--env-file path` for another file or `--no-env-file` to skip it. The Python API doesn't read `.env` on its own; call `jev_retrieval.envfile.load_env_file()` first if you want the same behaviour.
+Put them in a `.env` file: [`.env.example`](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/.env.example) lists every variable jev-retrieval reads, blank, with a note on each. The `jev-retrieval` CLI loads `./.env` before every command. Variables already set in your shell win, blank lines in the file are ignored, and it warns if the file is readable by other users. Use `--env-file path` for another file or `--no-env-file` to skip it. The Python API doesn't read `.env` on its own; call `jev_retrieval.envfile.load_env_file()` first if you want the same behaviour.
 
 Without a Jev key everything still runs, but nothing is screened or tagged, and retrieval returns plain vector ranking marked `degraded`.
 
@@ -116,8 +116,8 @@ Every sync method has an async twin (`aingest`, `aretrieve`, `aanswer`) for use 
 
 Two sample files at the repo root:
 
-- [`jev-retrieval.example.yaml`](jev-retrieval.example.yaml): every setting with its default and a comment, plus a ready-to-uncomment block for each database. `jev-retrieval init --full` writes the same file. Plain `jev-retrieval init` writes the short version below.
-- [`.env.example`](.env.example): every environment variable, blank.
+- [`jev-retrieval.example.yaml`](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/jev-retrieval.example.yaml): every setting with its default and a comment, plus a ready-to-uncomment block for each database. `jev-retrieval init --full` writes the same file. Plain `jev-retrieval init` writes the short version below.
+- [`.env.example`](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/.env.example): every environment variable, blank.
 
 Secrets never go in the YAML; it only names the variable to read (`api_key_env`, `dsn_env`). The short config:
 
@@ -172,7 +172,7 @@ answer:                        # only used by answer() / `jev-retrieval query --
   model: gpt-4.1-mini
 ```
 
-**The thresholds are starting points, not measured defaults.** They produced the right decisions on the small probes in [Results](docs/RESULTS.md), which is not the same as being tuned. Check them against your own documents with `jev-retrieval query -v` before relying on them.
+**The thresholds are starting points, not measured defaults.** They produced the right decisions on the small probes in [Results](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/docs/RESULTS.md), which is not the same as being tuned. Check them against your own documents with `jev-retrieval query -v` before relying on them.
 
 Every Jev stage has a `mode`. `shadow` computes and logs Jev's decision but acts on the fallback's result (structural chunks, keep every chunk, vector order, never abstain), so you can compare before switching it on. The shadow decisions appear in the ingest traces and in `result.trace`.
 
@@ -225,7 +225,7 @@ Why per paragraph and not per chunk:
 - **Junk survives a chunk-level check.** A short cookie banner or share bar is under `min_tokens`, so it gets merged into a content chunk, where it's a small fraction of the text and passes.
 - **Chunk-level quarantine hides real content.** An injection planted between two real paragraphs would be quarantined together with them.
 
-Measured on the [messy-document benchmark](docs/RESULTS.md#paragraph-level-screening-rerun-of-the-messy-benchmark): all 6 planted injections were quarantined alone, with no answers hidden, and 11 of 12 planted boilerplate paragraphs were removed. The hit rate rose from 93.4% to 96.7%.
+Measured on the [messy-document benchmark](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/docs/RESULTS.md#paragraph-level-screening-rerun-of-the-messy-benchmark): all 6 planted injections were quarantined alone, with no answers hidden, and 11 of 12 planted boilerplate paragraphs were removed. The hit rate rose from 93.4% to 96.7%.
 
 Cut paragraphs are blanked in a working copy, so chunk offsets still point into the original document. Headings and code are never screened.
 - **Reference lists are cut too.** If your users ask about citations, run `enrich.screen_paragraphs: shadow` first: it scores and logs everything and cuts nothing.
@@ -234,7 +234,7 @@ Cut paragraphs are blanked in a working copy, so chunk offsets still point into 
 
 ### Step 3: Chunk
 
-**Default: `structural`.** It cuts at headings and paragraph breaks within `min_tokens`/`target_tokens`/`max_tokens`, merging short pieces. It makes no Jev calls. It's the default because it matched or beat Jev chunking on both benchmarks once paragraph screening ran, at about half the ingest Jev cost ([Results](docs/RESULTS.md#paragraph-level-screening-rerun-of-the-messy-benchmark)). Headings are hard boundaries for every method.
+**Default: `structural`.** It cuts at headings and paragraph breaks within `min_tokens`/`target_tokens`/`max_tokens`, merging short pieces. It makes no Jev calls. It's the default because it matched or beat Jev chunking on both benchmarks once paragraph screening ran, at about half the ingest Jev cost ([Results](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/docs/RESULTS.md#paragraph-level-screening-rerun-of-the-messy-benchmark)). Headings are hard boundaries for every method.
 
 **Jev chunking (`method: jev`).** It may help on long unstructured text, such as transcripts or prose without paragraph breaks; this hasn't been shown yet. Compare on your own documents with `jev-retrieval inspect <file> --compare jev`. Within each section, jev-retrieval sends Jev the section text (in windows sized to Jev's request budget) plus two yes/no questions for every adjacent pair of sentences, all in **one request per window**:
 
@@ -243,7 +243,7 @@ Cut paragraphs are blanked in a working copy, so chunk offsets still point into 
 | `continues` | In the document, does `sentence` continue the specific point that `previous` is making? |
 | `refers_back` | Does `sentence` depend on `previous` to be understood, for example by referring back to it with words like this, it, these or such? |
 
-Each question carries its own sentence pair. An earlier design referred to sentences by position (`sentences[4]`), and Jev answered those about the wrong sentences: mean error 0.63 on a labelled probe, against 0.07 with the pair inline ([Results](docs/RESULTS.md#boundary-question-format)). Set `chunking.boundary.style: keyed` to use named keys instead, about 25% fewer tokens at slightly lower accuracy on that probe.
+Each question carries its own sentence pair. An earlier design referred to sentences by position (`sentences[4]`), and Jev answered those about the wrong sentences: mean error 0.63 on a labelled probe, against 0.07 with the pair inline ([Results](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/docs/RESULTS.md#boundary-question-format)). Set `chunking.boundary.style: keyed` to use named keys instead, about 25% fewer tokens at slightly lower accuracy on that probe.
 
 Gaps that code already decides (after a heading, between sections) are never asked. A 2,000-sentence manual takes a handful of requests, not 2,000.
 
@@ -425,7 +425,7 @@ Requests run concurrently under a shared rate limiter. Code then decides, in one
 2. `is_relevant` ≥ `min_relevant` and `contradicts_query_premise` ≥ `conflict` → **conflict**
 3. otherwise → **include**
 
-Included passages are sorted by evidence probability (ties broken by vector score) and the top `max_passages` (default 5) are kept. Nothing is dropped for a low score: on public data, dropping low scorers threw away real answers ([Results](docs/RESULTS.md#public-datasets-m2-scifact-fiqa-qasper)).
+Included passages are sorted by evidence probability (ties broken by vector score) and the top `max_passages` (default 5) are kept. Nothing is dropped for a low score: on public data, dropping low scorers threw away real answers ([Results](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/docs/RESULTS.md#public-datasets-m2-scifact-fiqa-qasper)).
 
 **`select: threshold`.** First match wins:
 
@@ -547,7 +547,7 @@ class MyStore(VectorStore):
 
 ## Cost and limits
 
-Measured on the small live runs in [Results](docs/RESULTS.md), through Vercel AI Gateway:
+Measured on the small live runs in [Results](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/docs/RESULTS.md), through Vercel AI Gateway:
 
 | Work | Jev requests | Jev input tokens | Jev cost |
 |---|---|---|---|
@@ -576,9 +576,9 @@ CI runs the offline suite on Python 3.10, 3.12 and 3.13, and the pgvector confor
 
 ## Roadmap
 
-Planned, not in this release. Tracked in the [PRD](docs/PRD.md) milestones:
+Planned, not in this release. Tracked in the [PRD](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/docs/PRD.md) milestones:
 
-- **Measured defaults, continued:** a cross-encoder re-ranking baseline, a gate question that fits claims as well as questions, and a decision on the classification default ([Results](docs/RESULTS.md#public-datasets-m2-scifact-fiqa-qasper)).
+- **Measured defaults, continued:** a cross-encoder re-ranking baseline, a gate question that fits claims as well as questions, and a decision on the classification default ([Results](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/docs/RESULTS.md#public-datasets-m2-scifact-fiqa-qasper)).
 - **More databases:** Pinecone verified against a live index, then Weaviate, Milvus, MongoDB Atlas, Elasticsearch, OpenSearch, Redis, LanceDB, Azure AI Search, turbopuffer, and a LlamaIndex bridge.
 - **More embedders:** native Cohere, Voyage, Gemini and Mistral clients with document/query input types.
 - **Hybrid search**, near-duplicate removal across documents, packed multi-passage classification.
@@ -587,9 +587,9 @@ Planned, not in this release. Tracked in the [PRD](docs/PRD.md) milestones:
 
 ## More
 
-- **[PRD](docs/PRD.md)**: requirements, design decisions and milestones
-- **[Results](docs/RESULTS.md)**: every measurement so far, with method and caveats
-- **[Known issues](docs/KNOWN_ISSUES.md)**: current limits
+- **[PRD](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/docs/PRD.md)**: requirements, design decisions and milestones
+- **[Results](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/docs/RESULTS.md)**: every measurement so far, with method and caveats
+- **[Known issues](https://github.com/MersivMedia/jev-rag-retrieval/blob/main/docs/KNOWN_ISSUES.md)**: current limits
 
 jev-retrieval is not affiliated with TypeSafe AI. Jev reads text only and works best in English. Treat its injection screening as one layer of defence, never the only one.
 
